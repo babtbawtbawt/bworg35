@@ -5,6 +5,7 @@ const io = require("socket.io")(http, {
     allowEIO3: true
 });
 const fs = require("fs");
+const crypto = require('crypto');
 
 // Utility functions
 function s4() {
@@ -21,7 +22,6 @@ function guidGen() {
 var colors = fs.readFileSync("./config/colors.txt").toString().replace(/\r/g,"").split("\n").filter(Boolean);
 var blacklist = fs.readFileSync("./config/blacklist.txt").toString().replace(/\r/g,"").split("\n");
 var config = JSON.parse(fs.readFileSync("./config/config.json"));
-var rabbiIPs = new Set(fs.readFileSync("./config/rabbis.txt").toString().replace(/\r/g,"").split("\n").filter(Boolean));
 if(blacklist.includes("")) blacklist = []; //If the blacklist has a blank line, ignore the whole list.
 
 // Define privileged colors - these are not in the random selection pool
@@ -57,11 +57,6 @@ function filtertext(tofilter) {
     return filtered;
 }
 
-// Function to save rabbi IPs
-function saveRabbis() {
-    fs.writeFileSync("./config/rabbis.txt", Array.from(rabbiIPs).join("\n"));
-}
-
 // User class
 class user {
     constructor(socket) {
@@ -69,6 +64,8 @@ class user {
         this.ip = getRealIP(socket);
         this.guid = guidGen();
         this.room = null;
+        this.coins = 100; // Starting coins
+        this.lastWork = 0; // Last work timestamp
         this.public = {
             color: "purple",
             name: "Anonymous",
@@ -78,87 +75,167 @@ class user {
             guid: this.guid,
             tag: "",
             tagged: false,
-            typing: ""
+            typing: "",
+            voiceMuted: false,
+            speaking: false,
+            coins: this.coins // Make coins public
         };
         this.loggedin = false;
-        this.level = 0; //This is the authority level
-        this.slowed = false; //This checks if the client is slowed
+        this.level = 0;
+        this.slowed = false;
         this.sanitize = true;
         this.muted = false;
         this.statlocked = false;
+        this.voiceMuted = false;
+        this.originalName = "";
 
+        // Add typing indicator with room check
+        this.socket.on("typing", (data) => {
+            if(!this.room || !this.loggedin) return;
+            if(typeof data !== "object") return;
+            
+            this.public.typing = data.state === 1 ? " (typing)" : data.state === 2 ? " (commanding)" : "";
+            this.room.emit("update", { guid: this.public.guid, userPublic: this.public });
+        });
+
+        // Add speaking status handler with room check
+        this.socket.on("speaking", (speaking) => {
+            if(!this.room || !this.loggedin) return;
+            if(this.voiceMuted) return;
+            
+            if(speaking) {
+                if(!this.public.speaking) {
+                    this.originalName = this.public.name;
+                    this.public.name += " (speaking)";
+                }
+            } else {
+                if(this.public.speaking) {
+                    this.public.name = this.originalName;
+                }
+            }
+            
+            this.public.speaking = speaking;
+            if(this.room) {
+                this.room.emit("update", {guid: this.public.guid, userPublic: this.public});
+            }
+        });
+
+        // Add voice chat handler with room check
+        this.socket.on("voice", (data) => {
+            if(!this.room || !this.loggedin) return;
+            if(this.voiceMuted) return;
+            
+            this.room.emit("voice", {
+                guid: this.public.guid,
+                data: data
+            }, this);
+        });
+
+        // Add login handler with proper room initialization
         this.socket.on("login", (logdata) => {
-          if(typeof logdata !== "object" || typeof logdata.name !== "string" || typeof logdata.room !== "string") return;
-          //Filter the login data
-            if (logdata.name == undefined || logdata.room == undefined) logdata = { room: "default", name: "Anonymous" };
-          (logdata.name == "" || logdata.name.length > config.namelimit || filtertext(logdata.name)) && (logdata.name = "Anonymous");
-          logdata.name.replace(/ /g,"") == "" && (logdata.name = "Anonymous");
-            if (this.loggedin == false) {
-              //If not logged in, set up everything
+            if(typeof logdata !== "object" || typeof logdata.name !== "string" || typeof logdata.room !== "string") return;
+            
+            if (logdata.name == undefined || logdata.room == undefined) {
+                logdata = { room: "default", name: "Anonymous" };
+            }
+            
+            if(this.loggedin) return; // Prevent multiple logins
+            
+            try {
+                // Set up user data
                 this.loggedin = true;
-                this.public.name = logdata.name;
-                this.public.color = colors[Math.floor(Math.random()*colors.length)];
-                this.public.pitch = 100;
-                this.public.speed = 100;
-                this.public.typing = "";
-                guidcounter++;
-                this.public.guid = guidcounter;
-                var roomname = logdata.room;
+                this.public.name = logdata.name || "Anonymous";
+                
+                // Check for rabbi cookie - simple expiry check
+                if(logdata.rabbiExpiry) {
+                    if(parseInt(logdata.rabbiExpiry) > Date.now()) {
+                        this.level = 0.5;
+                        this.public.color = "rabbi";
+                        this.public.tagged = true;
+                        this.public.tag = "Rabbi";
+                    }
+                }
+                
+                // Handle room setup
+                let roomname = logdata.room || "default";
                 if(roomname == "") roomname = "default";
-                if(rooms[roomname] == undefined) {
+                
+                // Create room if it doesn't exist
+                if(!rooms[roomname]) {
                     rooms[roomname] = new room(roomname);
-                    // Set creator as room owner
                     this.level = ROOMOWNER_LEVEL;
                     this.public.tagged = true;
                     this.public.tag = "Room Owner";
-                    this.public.color = "king"; // Keep king color for room owners
-                }
-                this.room = rooms[roomname];
-                this.room.users.push(this);
-                this.room.usersPublic[this.public.guid] = this.public;
-              //Update the new room
-                this.socket.emit("updateAll", { usersPublic: this.room.usersPublic });
-                this.room.emit("update", { guid: this.public.guid, userPublic: this.public }, this);
-                this.room.updateMemberCount();
-            }
-          //Send room info
-          this.socket.emit("room",{
-            room:this.room.name,
-            isOwner:this.level >= KING_LEVEL,
-            isPublic:this.room.name == "default",
-            });
-            
-            // Send initial auth level
-            this.socket.emit("authlv", {level: this.level});
-
-            // Check for automatic auth levels based on IP or passcodes
-            const ip = this.socket.request.connection.remoteAddress;
-            
-            // Auto-auth based on IP for rabbis
-            if(rabbiIPs.has(ip)) {
-                this.level = 0.5;
-                this.public.color = "rabbi";
-                this.public.tagged = true;
-                this.public.tag = "Rabbi";
-            }
-            // Auto-auth based on passcodes
-            else if(logdata.passcode) {
-                if(logdata.passcode === config.godword) {
-                    this.level = 2;
-                    this.public.color = "pope";
-                    this.public.tagged = true;
-                    this.public.tag = "Pope";
-                }
-                else if(logdata.passcode === config.kingword) {
-                    this.level = KING_LEVEL;
                     this.public.color = "king";
-                    this.public.tagged = true;
-                    this.public.tag = "King";
                 }
+                
+                // Join room
+                this.room = rooms[roomname];
+                if(this.room) {
+                    this.room.users.push(this);
+                    this.room.usersPublic[this.public.guid] = this.public;
+                    
+                    // Update room
+                    this.socket.emit("updateAll", { usersPublic: this.room.usersPublic });
+                    this.room.emit("update", { guid: this.public.guid, userPublic: this.public }, this);
+                    this.room.updateMemberCount();
+                }
+                
+                // Send room info
+                this.socket.emit("room", {
+                    room: roomname,
+                    isOwner: this.level >= KING_LEVEL,
+                    isPublic: roomname === "default"
+                });
+                
+                // Send auth level
+                this.socket.emit("authlv", {level: this.level});
+                
+            } catch(err) {
+                console.error("Login error:", err);
+                this.socket.emit("login_error", "Failed to join room");
+                this.loggedin = false;
+                this.room = null;
             }
         });
-      
-      //talk
+
+        // Handle disconnection with room cleanup
+        this.socket.on("disconnect", () => {
+            if(!this.loggedin || !this.room) return;
+            
+            try {
+                // Clean up room references
+                if(this.room.usersPublic[this.public.guid]) {
+                    delete this.room.usersPublic[this.public.guid];
+                }
+                
+                const userIndex = this.room.users.indexOf(this);
+                if(userIndex > -1) {
+                    this.room.users.splice(userIndex, 1);
+                }
+                
+                // Notify others and update count
+                this.room.emit("leave", { guid: this.public.guid });
+                this.room.updateMemberCount();
+                
+                // Clean up empty rooms except default
+                if(this.room.isEmpty() && this.room.name !== "default") {
+                    delete rooms[this.room.name];
+                }
+                
+                // Clean up IP tracking
+                if(userips[this.ip]) {
+                    userips[this.ip]--;
+                    if(userips[this.ip] <= 0) {
+                        delete userips[this.ip];
+                    }
+                }
+            } catch(err) {
+                console.error("Disconnect cleanup error:", err);
+            }
+        });
+
+        //talk
         this.socket.on("talk", (msg) => {
           if(typeof msg !== "object" || typeof msg.text !== "string") return;
           if(this.muted) return; // Prevent talking if muted
@@ -184,59 +261,6 @@ class user {
             }
         });
 
-        // Add typing indicator
-        this.socket.on("typing", (data) => {
-            if(typeof data !== "object") return;
-            this.public.typing = data.state === 1 ? " (typing)" : data.state === 2 ? " (commanding)" : "";
-            this.room.emit("update", { guid: this.public.guid, userPublic: this.public });
-        });
-
-      //Deconstruct the user on disconnect
-        this.socket.on("disconnect", () => {
-          userips[this.socket.request.connection.remoteAddress]--;
-            if(userips[this.socket.request.connection.remoteAddress] == 0) 
-                delete userips[this.socket.request.connection.remoteAddress];
-
-            if (this.loggedin) {
-                delete this.room.usersPublic[this.public.guid];
-                this.room.emit("leave", { guid: this.public.guid });
-this.room.users.splice(this.room.users.indexOf(this), 1);
-                this.room.updateMemberCount();
-
-                // Clean up empty rooms except default
-                if(this.room.isEmpty() && this.room.name !== "default") {
-                    delete rooms[this.room.name];
-                }
-            }
-        });
-
-      //COMMAND HANDLER
-      this.socket.on("command",cmd=>{
-        //parse and check
-        if(cmd.list[0] == undefined) return;
-        var comd = cmd.list[0];
-            var param = "";
-            if(cmd.list[1] == undefined) param = [""];
-        else{
-        param=cmd.list;
-        param.splice(0,1);
-        }
-        param = param.join(" ");
-          //filter
-          if(typeof param !== 'string') return;
-          if(this.sanitize) param = param.replace(/</g, "&lt;").replace(/>/g, "&gt;");
-          if(filtertext(param) && this.sanitize) return;
-        //carry it out
-        if(!this.slowed){
-          if(commands[comd] !== undefined) commands[comd](this, param);
-        //Slowmode
-        this.slowed = true;
-        setTimeout(()=>{
-          this.slowed = false;
-                },config.slowmode);
-        }
-        });
-
         // Add socket handler for votes
         this.socket.on("vote", (vote) => {
             if (this.room) {
@@ -246,26 +270,278 @@ this.room.users.splice(this.room.users.indexOf(this), 1);
 
         // Add statlock check to color command
         this.socket.on("useredit", data => {
-            if(!data.color) return;
-            if(this.statlocked) return; // Prevent if statlocked
-            this.public.color = data.color;
-            this.room.emit("update", {guid:this.public.guid, userPublic:this.public});
+            if(!data.id) return; // Must have target ID
+            let target = this.room.users.find(u => u.public.guid == data.id);
+            if(!target) return;
+            
+            // Check if target is statlocked
+            if(target.statlocked) return;
+            
+            // Update color if provided
+            if(data.color) {
+                target.public.color = data.color;
+            }
+            
+            // Update name if provided  
+            if(data.name) {
+                target.public.name = data.name;
+            }
+            
+            // Emit update to room
+            this.room.emit("update", {guid: target.public.guid, userPublic: target.public});
         });
 
-        // Add statlock check to name command  
-        this.socket.on("useredit", data => {
-            if(!data.name) return;
-            if(this.statlocked) return; // Prevent if statlocked
-            this.public.name = data.name;
-            this.room.emit("update", {guid:this.public.guid, userPublic:this.public});
+        // Remove old useredit handlers
+        this.socket.removeAllListeners("useredit");
+
+        // COMMAND HANDLER
+        this.socket.on("command",cmd=>{
+          //parse and check
+          if(cmd.list[0] == undefined) return;
+          var comd = cmd.list[0];
+              var param = "";
+              if(cmd.list[1] == undefined) param = [""];
+          else{
+          param=cmd.list;
+          param.splice(0,1);
+          }
+          param = param.join(" ");
+            //filter
+            if(typeof param !== 'string') return;
+            if(this.sanitize) param = param.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+            if(filtertext(param) && this.sanitize) return;
+          //carry it out
+          if(!this.slowed){
+            if(commands[comd] !== undefined) commands[comd](this, param);
+          //Slowmode
+          this.slowed = true;
+          setTimeout(()=>{
+            this.slowed = false;
+                  },config.slowmode);
+          }
+          });
+
+        // Add coin handlers
+        this.socket.on("stealCoins", (targetId) => {
+            if(targetId === this.guid) {
+                this.socket.emit("alert", "You can't steal from yourself!");
+                return;
+            }
+
+            let target = this.room.users.find(u => u.public.guid === targetId);
+            if(!target) return;
+
+            // Check if target has a lock
+            if(target.public.hasLock) {
+                // Check if thief has bolt cutters
+                if(this.public.hasBoltCutters) {
+                    // Bolt cutters break the lock
+                    target.public.hasLock = false;
+                    this.public.hasBoltCutters = false; // Bolt cutters are consumed
+                    
+                    let stolenAmount = Math.floor(target.coins * 0.5);
+                    target.coins -= stolenAmount;
+                    this.coins += stolenAmount;
+                    
+                    target.public.coins = target.coins;
+                    this.public.coins = this.coins;
+                    
+                    this.room.emit("update", {guid: target.public.guid, userPublic: target.public});
+                    this.room.emit("update", {guid: this.public.guid, userPublic: this.public});
+                    
+                    this.socket.emit("alert", `Used bolt cutters to break ${target.public.name}'s lock and stole ${stolenAmount} coins!`);
+                    target.socket.emit("alert", `${this.public.name} used bolt cutters to break your lock and stole ${stolenAmount} coins!`);
+                    return;
+                } else {
+                    // Lock protects the target
+                    this.socket.emit("alert", `${target.public.name}'s lock protected them from theft!`);
+                    target.socket.emit("alert", `${this.public.name} tried to steal from you but your lock protected you!`);
+                    return;
+                }
+            }
+
+            // Normal steal attempt (no lock or lock was broken)
+            // 50% chance of success
+            if(Math.random() < 0.5) {
+                // Success - steal 50% of their coins
+                let stolenAmount = Math.floor(target.coins * 0.5);
+                target.coins -= stolenAmount;
+                this.coins += stolenAmount;
+                
+                // Update both users' public coin amounts
+                target.public.coins = target.coins;
+                this.public.coins = this.coins;
+                
+                this.room.emit("update", {guid: target.public.guid, userPublic: target.public});
+                this.room.emit("update", {guid: this.public.guid, userPublic: this.public});
+                
+                this.socket.emit("alert", `Successfully stole ${stolenAmount} coins from ${target.public.name}!`);
+                target.socket.emit("alert", `${this.public.name} stole ${stolenAmount} coins from you!`);
+            } else {
+                // Fail - get tagged and turned into jew
+                this.public.color = "jew";
+                this.public.tagged = true;
+                this.public.tag = "STEAL FAIL";
+                this.room.emit("update", {guid: this.public.guid, userPublic: this.public});
+                this.socket.emit("alert", "Steal failed! You've been caught!");
+                target.socket.emit("alert", `${this.public.name} tried to steal from you but failed!`);
+            }
+        });
+
+        this.socket.on("gambleCoins", (amount) => {
+            amount = parseInt(amount);
+            if(isNaN(amount) || amount <= 0 || amount > this.coins) {
+                this.socket.emit("alert", "Invalid gambling amount!");
+                return;
+            }
+
+            // 45% chance to win (house edge)
+            if(Math.random() < 0.45) {
+                this.coins += amount;
+                this.socket.emit("alert", `You won ${amount} coins!`);
+            } else {
+                this.coins -= amount;
+                this.socket.emit("alert", `You lost ${amount} coins!`);
+            }
+            
+            this.public.coins = this.coins;
+            this.room.emit("update", {guid: this.public.guid, userPublic: this.public});
+        });
+
+        this.socket.on("work", () => {
+            const now = Date.now();
+            const cooldown = 5 * 60 * 1000; // 5 minutes
+            
+            if(now - this.lastWork < cooldown) {
+                this.socket.emit("alert", `You must wait ${Math.ceil((cooldown - (now - this.lastWork)) / 1000)} seconds before working again!`);
+                return;
+            }
+
+            const earnedCoins = Math.floor(Math.random() * 30) + 20; // 20-50 coins
+            this.coins += earnedCoins;
+            this.public.coins = this.coins;
+            this.lastWork = now;
+            
+            this.room.emit("update", {guid: this.public.guid, userPublic: this.public});
+            this.socket.emit("alert", `You earned ${earnedCoins} coins from working!`);
+        });
+
+        // Shop system
+        this.socket.on("getShop", () => {
+            const shopItems = [
+                { id: "lock", name: "Lock", price: 25, description: "Prevents coin theft" },
+                { id: "boltcutters", name: "Bolt Cutters", price: 75, description: "Cut through locks" },
+                { id: "broom", name: "Magical Broom", price: 999, description: "I bought a broom tag" }
+            ];
+            
+            this.socket.emit("shopMenu", {
+                balance: this.coins,
+                items: shopItems
+            });
+        });
+
+        this.socket.on("buyItem", (itemId) => {
+            if(!itemId || typeof itemId !== "string") {
+                this.socket.emit("purchaseFailed", { reason: "Invalid item ID" });
+                return;
+            }
+
+            let item, price;
+            switch(itemId) {
+                case "lock":
+                    item = "Lock";
+                    price = 25;
+                    break;
+                case "boltcutters":
+                    item = "Bolt Cutters";
+                    price = 75;
+                    break;
+                case "broom":
+                    item = "Magical Broom";
+                    price = 999;
+                    break;
+                default:
+                    this.socket.emit("purchaseFailed", { reason: "Item not found" });
+                    return;
+            }
+
+            // Check if user has enough coins
+            if(this.coins < price) {
+                this.socket.emit("purchaseFailed", { reason: `You need ${price} coins but only have ${this.coins}` });
+                return;
+            }
+
+            // Deduct coins
+            this.coins -= price;
+            this.public.coins = this.coins;
+
+            // Apply item effects
+            let message = "";
+            switch(itemId) {
+                case "lock":
+                    this.public.hasLock = true;
+                    message = "You are now protected from theft!";
+                    break;
+                case "boltcutters":
+                    this.public.hasBoltCutters = true;
+                    message = "You can now cut through locks!";
+                    break;
+                case "broom":
+                    this.public.hasBroom = true;
+                    this.public.tag = "I bought a broom";
+                    this.public.tagged = true;
+                    message = "You now have the broom tag!";
+                    break;
+            }
+
+            // Update user data
+            this.room.emit("update", {guid: this.public.guid, userPublic: this.public});
+            this.socket.emit("purchaseSuccess", { item: item, message: message });
+        });
+
+        // Donate coins
+        this.socket.on("donateCoins", (data) => {
+            if(!data || !data.target || !data.amount) {
+                this.socket.emit("alert", "Invalid donation data!");
+                return;
+            }
+
+            let amount = parseInt(data.amount);
+            if(isNaN(amount) || amount <= 0 || amount > this.coins) {
+                this.socket.emit("alert", "Invalid donation amount!");
+                return;
+            }
+
+            let target = this.room.users.find(u => u.public.guid === data.target);
+            if(!target) {
+                this.socket.emit("alert", "Target user not found!");
+                return;
+            }
+
+            if(target.guid === this.guid) {
+                this.socket.emit("alert", "You can't donate to yourself!");
+                return;
+            }
+
+            // Transfer coins
+            this.coins -= amount;
+            target.coins += amount;
+            this.public.coins = this.coins;
+            target.public.coins = target.coins;
+
+            // Update both users
+            this.room.emit("update", {guid: this.public.guid, userPublic: this.public});
+            this.room.emit("update", {guid: target.public.guid, userPublic: target.public});
+
+            this.socket.emit("alert", `You donated ${amount} coins to ${target.public.name}!`);
+            target.socket.emit("alert", `${this.public.name} donated ${amount} coins to you!`);
         });
     }
 }
 
-// Room class
+// Room class with error handling
 class room {
     constructor(name) {
-      //Room Properties
         this.name = name;
         this.users = [];
         this.usersPublic = {};
@@ -280,18 +556,27 @@ class room {
         };
     }
 
-  //Function to emit to every room member
     emit(event, msg, sender) {
-        this.users.forEach((user) => {
-            if(user !== sender) user.socket.emit(event, msg);
-        });
+        if(!this.users) return;
+        
+        try {
+            this.users.forEach((user) => {
+                if(user && user.socket && user !== sender) {
+                    user.socket.emit(event, msg);
+                }
+            });
+        } catch(err) {
+            console.error("Room emit error:", err);
+        }
     }
 
-    // Add method to broadcast member count
     updateMemberCount() {
-        this.emit("serverdata", {
-            count: this.users.length
-        });
+        if(!this.users) return;
+        this.emit("serverdata", { count: this.users.length });
+    }
+
+    isEmpty() {
+        return !this.users || this.users.length === 0;
     }
 
     // Add method to handle votes
@@ -324,11 +609,6 @@ class room {
             no: 0,
             voted: new Set()
         };
-    }
-
-    // Add method to check if room is empty
-    isEmpty() {
-        return this.users.length === 0;
     }
 }
 
@@ -383,9 +663,17 @@ var commands = {
     },
     
     color:(victim, param)=>{
-        if(victim.statlocked) return; // Prevent if statlocked
-        param = param.toLowerCase();
-        if(!colors.includes(param)) param = colors[Math.floor(Math.random() * colors.length)];
+        if(victim.statlocked) return;
+        
+        if(param.startsWith('http')) {
+            const url = new URL(param);
+            if(!config.whitelisted_image_hosts.includes(url.hostname)) {
+                param = colors[Math.floor(Math.random() * colors.length)];
+            }
+        } else if(!colors.includes(param.toLowerCase())) {
+            param = colors[Math.floor(Math.random() * colors.length)];
+        }
+        
         victim.public.color = param;
         victim.room.emit("update",{guid:victim.public.guid,userPublic:victim.public});
     },
@@ -405,7 +693,7 @@ var commands = {
     },
     
     godmode:(victim, param)=>{
-        if(param == config.godword) {
+        if(hashPassword(param) === config.godword) {
             victim.level = 2;
             victim.socket.emit("authlv", {level: victim.level});
         }
@@ -413,7 +701,7 @@ var commands = {
 
     kingmode:(victim, param)=>{
         if(!param) return;
-        if(param == config.kingword && config.kingword !== "") {
+        if(hashPassword(param) === config.kingword) {
             victim.level = KING_LEVEL;
             victim.socket.emit("authlv", {level: victim.level});
         }
@@ -500,10 +788,12 @@ var commands = {
         target.public.tagged = true;
         target.public.tag = "Rabbi";
 
-        // Add IP to rabbi list
-        const ip = target.socket.request.connection.remoteAddress;
-        rabbiIPs.add(ip);
-        saveRabbis();
+        // Set rabbi cookie with just expiry timestamp
+        const expiry = Date.now() + (duration * 60 * 1000);
+        target.socket.emit("setRabbiCookie", {
+            expiry: expiry,
+            duration: duration * 60
+        });
 
         target.socket.emit("authlv", {level: target.level});
         victim.room.emit("update", {guid:target.public.guid, userPublic:target.public});
@@ -511,14 +801,13 @@ var commands = {
 
         // Set timeout to remove rabbi status
         setTimeout(() => {
-            rabbiIPs.delete(ip);
-            saveRabbis();
             if(target.socket.connected) {
                 target.level = 0;
                 target.public.color = colors[Math.floor(Math.random()*colors.length)];
                 target.public.tagged = false;
                 target.public.tag = "";
                 target.socket.emit("authlv", {level: target.level});
+                target.socket.emit("clearRabbiCookie");
                 victim.room.emit("update", {guid:target.public.guid, userPublic:target.public});
             }
         }, duration * 60 * 1000);
@@ -761,6 +1050,29 @@ var commands = {
         target.socket.emit("ban", {});
         target.socket.disconnect();
     },
+
+    voicemute:(victim, param) => {
+        let target = victim.room.users.find(u => u.public.guid == param);
+        if(!target) return;
+        
+        target.voiceMuted = !target.voiceMuted;
+        target.public.voiceMuted = target.voiceMuted;
+        
+        // If muting, remove speaking status if active
+        if(target.voiceMuted && target.public.speaking) {
+            target.public.name = target.originalName;
+            target.public.speaking = false;
+        }
+        
+        if(target.voiceMuted) {
+            target.public.name += " (voice muted)";
+        } else {
+            target.public.name = target.public.name.replace(" (voice muted)", "");
+        }
+        
+        target.socket.emit("voiceMuted", {muted: target.voiceMuted});
+        victim.room.emit("update", {guid:target.public.guid, userPublic:target.public});
+    },
 };
 
 // Start server
@@ -768,3 +1080,7 @@ http.listen(config.port || 3000, () => {
     rooms["default"] = new room("default");
     console.log("running at http://bonzi.localhost:" + (config.port || 3000));
 });
+
+function hashPassword(password) {
+    return crypto.createHash('sha256').update(password).digest('hex');
+}

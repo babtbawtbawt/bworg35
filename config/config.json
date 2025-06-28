@@ -1,9 +1,16 @@
 {
   "port":80,
-  "godword":"Pastule",
-  "kingword":"Pastule0",
+  "godword":"1e2f211e374bf50230a283979b01078b6dee25d78eaded78a17dbfe88ca28382",
+  "kingword":"b2ead66e408dafd2fe8ea28ced3c061a428a4135beb5efe33dbf87c2b18a19e6",
   "altlimit": 4,
   "slowmode": 1000,
   "namelimit": 25,
-  "charlimit": 2500
+  "charlimit": 2500,
+  "whitelisted_image_hosts": [
+    "i.imgbb.com",
+    "files.catbox.moe",
+    "litter.catbox.moe",
+    "i.imgflip.com"
+  ],
+  "version": "6.9.16 LEAKED BETA"
 }

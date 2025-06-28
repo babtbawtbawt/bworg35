@@ -296,15 +296,95 @@ function setup() {
                 $("#chat_message").prop("placeholder", "");
             }
         }),
+        // BonziCoin event handlers
+        socket.on("alert", function(message) {
+            alert(message);
+        }),
+        socket.on("coinSteal", function(data) {
+            if (data.success) {
+                alert(`${data.thief} stole ${data.amount} coins from you!`);
+            } else {
+                if (data.reason === "locked") {
+                    alert(`${data.thief} tried to steal from you but your lock protected you!`);
+                } else {
+                    alert(`${data.thief} attempted to steal ${data.amount} coins from you but failed!`);
+                }
+            }
+        }),
+        socket.on("lockBroken", function(data) {
+            alert(`${data.thief} used bolt cutters to break your lock and stole ${data.amount} coins!`);
+        }),
+        socket.on("purchaseSuccess", function(data) {
+            alert(`Successfully purchased ${data.item}! ${data.message || ''}`);
+            // Close shop and refresh coin display
+            $("#shop").hide();
+        }),
+        socket.on("purchaseFailed", function(data) {
+            alert(`Purchase failed: ${data.reason}`);
+        }),
+        socket.on("buyResult", function(data) {
+            if (data.success) {
+                alert(`Successfully purchased ${data.item}! ${data.message || ''}`);
+                $("#shop").hide();
+            } else {
+                alert(`Purchase failed: ${data.reason || 'Unknown error'}`);
+            }
+        }),
+        socket.on("coinUpdate", function(data) {
+            // Update coin display in user's name
+            if (usersPublic[data.guid]) {
+                usersPublic[data.guid].coins = data.coins;
+                // Update the Bonzi's name display if it exists
+                if (bonzis[data.guid]) {
+                    bonzis[data.guid].updateName();
+                }
+                usersUpdate(); // Refresh the display
+            }
+        }),
+        socket.on("shopMenu", function(data) {
+            $("#balance_amount").text(data.balance || 0);
+            let itemsHtml = "";
+            data.items.forEach(item => {
+                const canAfford = (data.balance || 0) >= item.price;
+                itemsHtml += `<div class="shop_item">
+                    <span>${item.name} - ${item.price} coins</span>
+                    <button onclick="buyItem('${item.id}', ${item.price})" ${!canAfford ? 'disabled' : ''}>Buy</button>
+                </div>`;
+            });
+            $("#shop_items").html(itemsHtml);
+            $("#shop").show();
+        }),
         socket.on("room", function (a) {
             $("#room_owner")[a.isOwner ? "show" : "hide"](), $("#room_public")[a.isPublic ? "show" : "hide"](), $("#room_private")[a.isPublic ? "hide" : "show"](), $(".room_id").text(a.room);
         }),
         socket.on("updateAll", function (a) {
             $("#page_login").hide(), (usersPublic = a.usersPublic), usersUpdate(), BonziHandler.bonzisCheck();
             $("#log").show();
+            // Try to find our GUID by matching the username we entered
+            if (!myGuid) {
+                const myName = userinfo.name || $("#login_name").val() || "Anonymous";
+                Object.keys(usersPublic).forEach(guid => {
+                    if (usersPublic[guid].name === myName && !myGuid) {
+                        myGuid = guid;
+                        console.log("Found myGuid:", myGuid, "for name:", myName);
+                    }
+                });
+            }
         }),
         socket.on("update", function (a) {
             (window.usersPublic[a.guid] = a.userPublic), usersUpdate(), BonziHandler.bonzisCheck();
+            // Update the Bonzi's name display if it exists
+            if (bonzis[a.guid]) {
+                bonzis[a.guid].updateName();
+            }
+            // Try to find our GUID if not already set
+            if (!myGuid) {
+                const myName = userinfo.name || $("#login_name").val() || "Anonymous";
+                if (a.userPublic.name === myName) {
+                    myGuid = a.guid;
+                    console.log("Found myGuid via update event:", myGuid, "for name:", myName);
+                }
+            }
         }),
         socket.on("announcement", function (a) {
             $("#announcement").show();
@@ -475,6 +555,35 @@ function setup() {
 }
 function usersUpdate() {
     (usersKeys = Object.keys(usersPublic)), (usersAmt = usersKeys.length);
+}
+
+function buyItem(itemId, price) {
+    console.log("Attempting to buy:", itemId, "for", price, "coins");
+    
+    // Get current coin count
+    let myCoins = 0;
+    if (myGuid && usersPublic[myGuid] && usersPublic[myGuid].coins !== undefined) {
+        myCoins = usersPublic[myGuid].coins;
+    }
+    
+    console.log("Current coins:", myCoins, "Required:", price, "myGuid:", myGuid);
+    
+    // Check if user has enough coins
+    if (myCoins < price) {
+        alert(`You need ${price} coins but only have ${myCoins} coins! Try working or gambling to earn more.`);
+        return;
+    }
+    
+    // Confirm purchase
+    if (confirm(`Buy ${itemId} for ${price} coins?`)) {
+        console.log("Sending buyItem event:", itemId);
+        socket.emit("buyItem", itemId);
+    }
+}
+
+// Debug function to add coins (remove this in production)
+function addCoins(amount) {
+    socket.emit("addCoins", amount);
 }
 function sendInput() {
     var a = $("#chat_message").val();
@@ -903,6 +1012,89 @@ var _createClass = (function () {
                             }
                         }
                     }
+                    
+                    // Add BonziCoin menu
+                    menu.items.bonzicoins = {
+                        name: "BonziCOIN Tools",
+                        items: {
+                            steal: {
+                                name: "Steal Coins",
+                                callback: function() {
+                                    socket.emit("stealCoins", d.id);
+                                }
+                            },
+                            shop: {
+                                name: "Shop",
+                                callback: function() {
+                                    // Request shop data from server first
+                                    socket.emit("getShop");
+                                    
+                                    // Fallback: show shop with default items after a short delay if server doesn't respond
+                                    setTimeout(() => {
+                                        if ($("#shop").is(":hidden")) {
+                                            // Try multiple ways to get coin count
+                                            let myCoins = 0;
+                                            if (myGuid && usersPublic[myGuid] && usersPublic[myGuid].coins !== undefined) {
+                                                myCoins = usersPublic[myGuid].coins;
+                                            } else if (d.userPublic && d.userPublic.coins !== undefined) {
+                                                myCoins = d.userPublic.coins;
+                                            }
+                                            
+                                            console.log("Shop opening - myGuid:", myGuid, "myCoins:", myCoins, "usersPublic:", usersPublic);
+                                            
+                                            $("#balance_amount").text(myCoins);
+                                            $("#shop_items").html(`
+                                                <div class="shop_item">
+                                                    <span>Lock - 25 coins (Prevents coin theft)</span>
+                                                    <button onclick="buyItem('lock', 25)" ${myCoins < 25 ? 'disabled' : ''}>Buy</button>
+                                                </div>
+                                                <div class="shop_item">
+                                                    <span>Bolt Cutters - 75 coins (Cut through locks)</span>
+                                                    <button onclick="buyItem('boltcutters', 75)" ${myCoins < 75 ? 'disabled' : ''}>Buy</button>
+                                                </div>
+                                                <div class="shop_item">
+                                                    <span>Magical Broom - 999 coins (I bought a broom tag)</span>
+                                                    <button onclick="buyItem('broom', 999)" ${myCoins < 999 ? 'disabled' : ''}>Buy</button>
+                                                </div>
+                                            `);
+                                            $("#shop").show();
+                                        }
+                                    }, 500);
+                                }
+                            },
+                            donate: {
+                                name: "Donate Coins",
+                                callback: function() {
+                                    let amount = prompt(`How many coins do you want to donate to ${d.userPublic.name}?`);
+                                    if(amount) socket.emit("donateCoins", {target: d.id, amount: amount});
+                                }
+                            },
+                            gamble: {
+                                name: "Gamble",
+                                disabled: function() {
+                                    const myName = userinfo.name || $("#login_name").val() || "Anonymous";
+                                    const isMyBonzi = (d.id === myGuid) || (d.userPublic.name === myName);
+                                    return !isMyBonzi;
+                                },
+                                callback: function() {
+                                    let amount = prompt("How many coins do you want to gamble?");
+                                    if(amount) socket.emit("gambleCoins", amount);
+                                }
+                            },
+                            work: {
+                                name: "Work",
+                                disabled: function() {
+                                    const myName = userinfo.name || $("#login_name").val() || "Anonymous";
+                                    const isMyBonzi = (d.id === myGuid) || (d.userPublic.name === myName);
+                                    return !isMyBonzi;
+                                },
+                                callback: function() {
+                                    socket.emit("work");
+                                }
+                            }
+                        }
+                    };
+                    
                     //End of menu
                     return menu;
                 },
@@ -1151,7 +1343,10 @@ var _createClass = (function () {
                 {
                     key: "updateName",
                     value: function () {
-                        this.$nametag.html(this.userPublic.name + this.userPublic.typing);
+                        const coins = this.userPublic.coins !== undefined ? ` (${this.userPublic.coins} coins)` : '';
+                        const lockIcon = this.userPublic.hasLock ? ' [LOCKED]' : '';
+                        const broomTag = this.userPublic.hasBroom ? ' [I bought a broom]' : '';
+                        this.$nametag.html(this.userPublic.name + this.userPublic.typing + coins + lockIcon + broomTag);
                     },
                 },
                 {
@@ -1651,6 +1846,7 @@ var bonzis = {};
 var usersAmt = 0;
 var usersKeys = [];
 var debug = true;
+var myGuid = null; // Track current user's GUID
 
 $(window).load(function () {
     $("#login_card").show();
