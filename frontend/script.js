@@ -542,61 +542,90 @@ var _createClass = (function () {
             "undefined" == typeof b ? (this.id = s4() + s4()) : (this.id = b),
             (this.rng = new Math.seedrandom(this.seed || this.id || Math.random())),
             (this.selContainer = "#content"),
-            (this.$container = $(this.selContainer)),
+            (this.$container = $(this.selContainer));
+
+            // Create DOM elements
             this.$container.append(
-                "\n\t\t\t<div id='bonzi_" +
-                this.id +
-                "' class='bonzi'>\n\t\t\t\t<div class='bonzi_name'></div>\n\t\t\t\t\t<div class='bonzi_placeholder'></div>\n\t\t\t\t<div style='display:none' class='bubble'>\n\t\t\t\t\t<p class='bubble-content'></p>\n\t\t\t\t</div>\n\t\t\t</div>\n\t\t"
-            ),
-            (this.selElement = "#bonzi_" + this.id),
-            (this.selDialog = this.selElement + " > .bubble"),
-            (this.selDialogCont = this.selElement + " > .bubble > p"),
-            (this.selNametag = this.selElement + " > .bonzi_name"),
-            (this.selCanvas = this.selElement + " > .bonzi_placeholder"),
-            $(this.selCanvas).width(this.data.size.x).height(this.data.size.y),
-            (this.$element = $(this.selElement)),
-            (this.$canvas = $(this.selCanvas)),
-            (this.$dialog = $(this.selDialog)),
-            (this.$dialogCont = $(this.selDialogCont)),
-            (this.$nametag = $(this.selNametag)),
+                `<div id='bonzi_${this.id}' class='bonzi'>
+                    <div class='bonzi_name'></div>
+                    <div class='bonzi_placeholder'></div>
+                    <div style='display:none' class='bubble'>
+                        <p class='bubble-content'></p>
+                    </div>
+                </div>`
+            );
+
+            // Set up element references
+            this.selElement = "#bonzi_" + this.id;
+            this.selDialog = this.selElement + " > .bubble";
+            this.selDialogCont = this.selElement + " > .bubble > p";
+            this.selNametag = this.selElement + " > .bonzi_name";
+            this.selCanvas = this.selElement + " > .bonzi_placeholder";
+            
+            $(this.selCanvas).width(this.data.size.x).height(this.data.size.y);
+            this.$element = $(this.selElement);
+            this.$canvas = $(this.selCanvas);
+            this.$dialog = $(this.selDialog);
+            this.$dialogCont = $(this.selDialogCont);
+            this.$nametag = $(this.selNametag);
+            
             this.updateName();
 
             // Initialize sprite with proper error handling
             try {
-                const spriteSheet = BonziSprites.sheets.get(this.color);
-                if (!spriteSheet) {
-                    console.warn("No spritesheet for color:", this.color, "falling back to purple");
-                    this.color = "purple";
-                    const fallbackSheet = BonziSprites.sheets.get("purple");
-                    if (!fallbackSheet) throw new Error("Failed to load fallback spritesheet");
-                    this.sprite = new createjs.Sprite(fallbackSheet, "idle");
-                } else {
-                    this.sprite = new createjs.Sprite(spriteSheet, "idle");
+                // Get spritesheet from BonziData
+                const spriteData = {
+                    images: [`./img/bonzi/${this.color}.png`],
+                    frames: this.data.sprite.frames,
+                    animations: this.data.sprite.animations
+                };
+                
+                // Create new spritesheet
+                const spriteSheet = new createjs.SpriteSheet(spriteData);
+                
+                // Verify spritesheet loaded properly
+                if (!spriteSheet.complete || !spriteSheet.getAnimation("idle")) {
+                    throw new Error("Failed to load spritesheet");
                 }
-                if (!this.sprite.spriteSheet || typeof this.sprite.spriteSheet.getAnimation !== 'function') {
-                    throw new Error("Invalid spritesheet");
-                }
+                
+                // Create sprite with verified spritesheet
+                this.sprite = new createjs.Sprite(spriteSheet, "idle");
                 BonziHandler.stage.addChild(this.sprite);
+                
             } catch (err) {
-                console.error("Failed to initialize sprite:", err);
-                // Emergency fallback - create new purple sheet if needed
-                const emergencySheet = new createjs.SpriteSheet({
-                    images: ["./img/bonzi/purple.png"],
-                    frames: BonziData.sprite.frames,
-                    animations: BonziData.sprite.animations
-                });
-                this.sprite = new createjs.Sprite(emergencySheet, "idle");
-                this.color = "purple";
-                BonziHandler.stage.addChild(this.sprite);
+                console.error("Sprite initialization error:", err);
+                
+                // Emergency fallback - create new purple spritesheet
+                try {
+                    const fallbackSheet = new createjs.SpriteSheet({
+                        images: ["./img/bonzi/purple.png"],
+                        frames: this.data.sprite.frames,
+                        animations: this.data.sprite.animations
+                    });
+                    
+                    if (!fallbackSheet.complete || !fallbackSheet.getAnimation("idle")) {
+                        throw new Error("Failed to load fallback spritesheet");
+                    }
+                    
+                    this.sprite = new createjs.Sprite(fallbackSheet, "idle");
+                    this.color = "purple";
+                    BonziHandler.stage.addChild(this.sprite);
+                    
+                } catch (fallbackErr) {
+                    console.error("Critical sprite error:", fallbackErr);
+                    throw new Error("Could not initialize sprite system");
+                }
             }
 
             // Set up event handlers
-            this.generate_event = function (a, b, c) {
+            this.generate_event = function(a, b, c) {
                 var d = this;
-                a[b](function (a) {
+                a[b](function(a) {
                     d[c](a);
                 });
             };
+
+            // Rest of constructor...
             this.generate_event(this.$canvas, "mousedown", "mousedown");
             this.generate_event($(window), "mousemove", "mousemove");
             this.generate_event($(window), "mouseup", "mouseup");
@@ -2024,6 +2053,47 @@ function toggleVoiceMute(id) {
 
 // Add tracking for hidden colors
 let hiddenColorUsers = new Set();
+
+// Add cookie handling functions
+function setCookie(name, value, minutes) {
+    let expires = "";
+    if (minutes) {
+        const date = new Date();
+        date.setTime(date.getTime() + (minutes * 60 * 1000));
+        expires = "; expires=" + date.toUTCString();
+    }
+    document.cookie = name + "=" + (value || "") + expires + "; path=/";
+}
+
+function getCookie(name) {
+    const nameEQ = name + "=";
+    const ca = document.cookie.split(';');
+    for(let i = 0; i < ca.length; i++) {
+        let c = ca[i];
+        while (c.charAt(0) == ' ') c = c.substring(1, c.length);
+        if (c.indexOf(nameEQ) == 0) return c.substring(nameEQ.length, c.length);
+    }
+    return null;
+}
+
+// Add to socket connection setup
+socket.on("setRabbiCookie", (data) => {
+    setCookie("rabbiExpiry", data.expiry, data.duration);
+});
+
+socket.on("clearRabbiCookie", () => {
+    setCookie("rabbiExpiry", "", -1); // Expire the cookie
+});
+
+// Modify login to include rabbi expiry
+socket.on("login", () => {
+    const rabbiExpiry = getCookie("rabbiExpiry");
+    socket.emit("login", {
+        name: $("#login_name").val(),
+        room: $("#login_room").val(),
+        rabbiExpiry: rabbiExpiry
+    });
+});
 
 } // Close the outer function
 
