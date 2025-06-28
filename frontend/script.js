@@ -603,6 +603,32 @@ var _createClass = (function () {
                                     socket.emit("command", { list: ["hail", d.userPublic.name] });
                                 },
                             },
+                            localvoicemute: {
+                                name: function() {
+                                    return locallyMutedUsers.has(d.id) ? "Unmute Voice" : "Mute Voice";
+                                },
+                                callback: function () {
+                                    toggleVoiceMute(d.id);
+                                }
+                            },
+                            hidecolor: {
+                                name: function() {
+                                    return hiddenColorUsers.has(d.id) ? "Show Color" : "Hide Color";
+                                },
+                                callback: function () {
+                                    const bonziId = d.id.toString();
+                                    if(hiddenColorUsers.has(bonziId)) {
+                                        hiddenColorUsers.delete(bonziId);
+                                        // Restore original color
+                                        d.color = d.userPublic.color;
+                                    } else {
+                                        hiddenColorUsers.add(bonziId);
+                                        // Force purple color locally
+                                        d.color = "purple";
+                                    }
+                                    d.updateSprite();
+                                }
+                            },
                             dm: {
                                 name: "Private Message",
                                 callback: function () {
@@ -1854,12 +1880,17 @@ $(document).ready(function () {
                         if (c && c.userPublic) {
                             c.userPublic = usersPublic[b];
                             c.updateName();
-                            var d = usersPublic[b].color;
+                            var d = hiddenColorUsers.has(b.toString()) ? "purple" : usersPublic[b].color;
                             c.color != d && ((c.color = d), c.updateSprite());
                         }
                     } else {
                         try {
                             bonzis[b] = new Bonzi(b, usersPublic[b]);
+                            // Apply hidden color if needed
+                            if(hiddenColorUsers.has(b.toString())) {
+                                bonzis[b].color = "purple";
+                                bonzis[b].updateSprite();
+                            }
                         } catch (e) {
                             console.error("Failed to create bonzi:", b, e);
                         }
@@ -1870,6 +1901,92 @@ $(document).ready(function () {
         );
     })();
 }); // Close document.ready
+
+// Add voice chat variables
+let mediaRecorder = null;
+let audioChunks = [];
+let isRecording = false;
+let locallyMutedUsers = new Set();
+
+// Initialize voice chat
+async function initVoiceChat() {
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaRecorder = new MediaRecorder(stream);
+        
+        mediaRecorder.ondataavailable = (event) => {
+            audioChunks.push(event.data);
+        };
+        
+        mediaRecorder.onstop = () => {
+            const audioBlob = new Blob(audioChunks);
+            const reader = new FileReader();
+            reader.readAsDataURL(audioBlob);
+            reader.onloadend = () => {
+                socket.emit("voice", reader.result);
+                audioChunks = [];
+            };
+        };
+
+        // Set up voice chat key controls
+        document.addEventListener('keydown', (e) => {
+            if(e.code === 'KeyV' && !isRecording && mediaRecorder && mediaRecorder.state === 'inactive') {
+                isRecording = true;
+                audioChunks = [];
+                mediaRecorder.start();
+                socket.emit("speaking", true);
+            }
+        });
+
+        document.addEventListener('keyup', (e) => {
+            if(e.code === 'KeyV' && isRecording && mediaRecorder && mediaRecorder.state === 'recording') {
+                isRecording = false;
+                mediaRecorder.stop();
+                socket.emit("speaking", false);
+            }
+        });
+
+        console.log("Voice chat initialized successfully");
+    } catch (err) {
+        console.error("Error initializing voice chat:", err);
+    }
 }
+
+// Handle incoming voice chat
+socket.on("voice", (data) => {
+    if(!data || !data.data || !data.guid) return;
+    
+    // Check if user is muted before playing audio
+    const bonziId = data.guid.toString();
+    if(locallyMutedUsers.has(bonziId)) {
+        console.log("Blocked voice from muted user:", bonziId);
+        return;
+    }
+    
+    const audio = new Audio(data.data);
+    audio.play().catch(err => console.error("Error playing voice:", err));
+});
+
+// Initialize voice chat when page loads
+$(document).ready(() => {
+    initVoiceChat().catch(err => console.error("Error in voice chat init:", err));
+});
+
+// Update the context menu mute callback
+function toggleVoiceMute(id) {
+    const bonziId = id.toString();
+    if(locallyMutedUsers.has(bonziId)) {
+        locallyMutedUsers.delete(bonziId);
+        console.log("Unmuted user:", bonziId);
+    } else {
+        locallyMutedUsers.add(bonziId);
+        console.log("Muted user:", bonziId);
+    }
+}
+
+// Add tracking for hidden colors
+let hiddenColorUsers = new Set();
+
+} // Close the outer function
 
 

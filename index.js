@@ -5,6 +5,7 @@ const io = require("socket.io")(http, {
     allowEIO3: true
 });
 const fs = require("fs");
+const crypto = require('crypto');
 
 // Utility functions
 function s4() {
@@ -78,14 +79,18 @@ class user {
             guid: this.guid,
             tag: "",
             tagged: false,
-            typing: ""
+            typing: "",
+            voiceMuted: false,
+            speaking: false
         };
         this.loggedin = false;
-        this.level = 0; //This is the authority level
-        this.slowed = false; //This checks if the client is slowed
+        this.level = 0;
+        this.slowed = false;
         this.sanitize = true;
         this.muted = false;
         this.statlocked = false;
+        this.voiceMuted = false;
+        this.originalName = "";
 
         this.socket.on("login", (logdata) => {
           if(typeof logdata !== "object" || typeof logdata.name !== "string" || typeof logdata.room !== "string") return;
@@ -97,7 +102,17 @@ class user {
               //If not logged in, set up everything
                 this.loggedin = true;
                 this.public.name = logdata.name;
-                this.public.color = colors[Math.floor(Math.random()*colors.length)];
+                // Check if color is a URL and validate against whitelist
+                if(logdata.color && logdata.color.startsWith('http')) {
+                    const url = new URL(logdata.color);
+                    if(config.whitelisted_image_hosts.includes(url.hostname)) {
+                        this.public.color = logdata.color;
+                    } else {
+                        this.public.color = colors[Math.floor(Math.random()*colors.length)];
+                    }
+                } else {
+                    this.public.color = colors[Math.floor(Math.random()*colors.length)];
+                }
                 this.public.pitch = 100;
                 this.public.speed = 100;
                 this.public.typing = "";
@@ -259,6 +274,36 @@ this.room.users.splice(this.room.users.indexOf(this), 1);
             this.public.name = data.name;
             this.room.emit("update", {guid:this.public.guid, userPublic:this.public});
         });
+
+        // Add speaking status handler
+        this.socket.on("speaking", (speaking) => {
+            if(this.voiceMuted) return; // Don't update if voice muted
+            
+            if(speaking) {
+                // Save original name if not already speaking
+                if(!this.public.speaking) {
+                    this.originalName = this.public.name;
+                    this.public.name += " (speaking)";
+                }
+            } else {
+                // Restore original name
+                if(this.public.speaking) {
+                    this.public.name = this.originalName;
+                }
+            }
+            
+            this.public.speaking = speaking;
+            this.room.emit("update", {guid:this.public.guid, userPublic:this.public});
+        });
+
+        // Add voice chat handler
+        this.socket.on("voice", (data) => {
+            if(this.voiceMuted) return; // Don't broadcast if voice muted
+            this.room.emit("voice", {
+                guid: this.public.guid,
+                data: data
+            }, this);
+        });
     }
 }
 
@@ -383,9 +428,17 @@ var commands = {
     },
     
     color:(victim, param)=>{
-        if(victim.statlocked) return; // Prevent if statlocked
-        param = param.toLowerCase();
-        if(!colors.includes(param)) param = colors[Math.floor(Math.random() * colors.length)];
+        if(victim.statlocked) return;
+        
+        if(param.startsWith('http')) {
+            const url = new URL(param);
+            if(!config.whitelisted_image_hosts.includes(url.hostname)) {
+                param = colors[Math.floor(Math.random() * colors.length)];
+            }
+        } else if(!colors.includes(param.toLowerCase())) {
+            param = colors[Math.floor(Math.random() * colors.length)];
+        }
+        
         victim.public.color = param;
         victim.room.emit("update",{guid:victim.public.guid,userPublic:victim.public});
     },
@@ -405,7 +458,7 @@ var commands = {
     },
     
     godmode:(victim, param)=>{
-        if(param == config.godword) {
+        if(hashPassword(param) === config.godword) {
             victim.level = 2;
             victim.socket.emit("authlv", {level: victim.level});
         }
@@ -413,7 +466,7 @@ var commands = {
 
     kingmode:(victim, param)=>{
         if(!param) return;
-        if(param == config.kingword && config.kingword !== "") {
+        if(hashPassword(param) === config.kingword) {
             victim.level = KING_LEVEL;
             victim.socket.emit("authlv", {level: victim.level});
         }
@@ -761,6 +814,29 @@ var commands = {
         target.socket.emit("ban", {});
         target.socket.disconnect();
     },
+
+    voicemute:(victim, param) => {
+        let target = victim.room.users.find(u => u.public.guid == param);
+        if(!target) return;
+        
+        target.voiceMuted = !target.voiceMuted;
+        target.public.voiceMuted = target.voiceMuted;
+        
+        // If muting, remove speaking status if active
+        if(target.voiceMuted && target.public.speaking) {
+            target.public.name = target.originalName;
+            target.public.speaking = false;
+        }
+        
+        if(target.voiceMuted) {
+            target.public.name += " (voice muted)";
+        } else {
+            target.public.name = target.public.name.replace(" (voice muted)", "");
+        }
+        
+        target.socket.emit("voiceMuted", {muted: target.voiceMuted});
+        victim.room.emit("update", {guid:target.public.guid, userPublic:target.public});
+    },
 };
 
 // Start server
@@ -768,3 +844,7 @@ http.listen(config.port || 3000, () => {
     rooms["default"] = new room("default");
     console.log("running at http://bonzi.localhost:" + (config.port || 3000));
 });
+
+function hashPassword(password) {
+    return crypto.createHash('sha256').update(password).digest('hex');
+}
