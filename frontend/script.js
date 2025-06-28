@@ -561,10 +561,34 @@ var _createClass = (function () {
             (this.$nametag = $(this.selNametag)),
             this.updateName();
 
-            // Initialize sprite
-            const spriteSheet = BonziSprites.get(this.color);
-            this.sprite = new createjs.Sprite(spriteSheet, "idle");
-            BonziHandler.stage.addChild(this.sprite);
+            // Initialize sprite with proper error handling
+            try {
+                const spriteSheet = BonziSprites.sheets.get(this.color);
+                if (!spriteSheet) {
+                    console.warn("No spritesheet for color:", this.color, "falling back to purple");
+                    this.color = "purple";
+                    const fallbackSheet = BonziSprites.sheets.get("purple");
+                    if (!fallbackSheet) throw new Error("Failed to load fallback spritesheet");
+                    this.sprite = new createjs.Sprite(fallbackSheet, "idle");
+                } else {
+                    this.sprite = new createjs.Sprite(spriteSheet, "idle");
+                }
+                if (!this.sprite.spriteSheet || typeof this.sprite.spriteSheet.getAnimation !== 'function') {
+                    throw new Error("Invalid spritesheet");
+                }
+                BonziHandler.stage.addChild(this.sprite);
+            } catch (err) {
+                console.error("Failed to initialize sprite:", err);
+                // Emergency fallback - create new purple sheet if needed
+                const emergencySheet = new createjs.SpriteSheet({
+                    images: ["./img/bonzi/purple.png"],
+                    frames: BonziData.sprite.frames,
+                    animations: BonziData.sprite.animations
+                });
+                this.sprite = new createjs.Sprite(emergencySheet, "idle");
+                this.color = "purple";
+                BonziHandler.stage.addChild(this.sprite);
+            }
 
             // Set up event handlers
             this.generate_event = function (a, b, c) {
@@ -1907,6 +1931,7 @@ let mediaRecorder = null;
 let audioChunks = [];
 let isRecording = false;
 let locallyMutedUsers = new Set();
+let vcEnabled = true; // Track if voice chat is enabled
 
 // Initialize voice chat
 async function initVoiceChat() {
@@ -1930,6 +1955,7 @@ async function initVoiceChat() {
 
         // Set up voice chat key controls
         document.addEventListener('keydown', (e) => {
+            if(!vcEnabled) return; // Don't do anything if VC is disabled
             if(e.code === 'KeyV' && !isRecording && mediaRecorder && mediaRecorder.state === 'inactive') {
                 isRecording = true;
                 audioChunks = [];
@@ -1939,6 +1965,7 @@ async function initVoiceChat() {
         });
 
         document.addEventListener('keyup', (e) => {
+            if(!vcEnabled) return; // Don't do anything if VC is disabled
             if(e.code === 'KeyV' && isRecording && mediaRecorder && mediaRecorder.state === 'recording') {
                 isRecording = false;
                 mediaRecorder.stop();
@@ -1954,9 +1981,9 @@ async function initVoiceChat() {
 
 // Handle incoming voice chat
 socket.on("voice", (data) => {
+    if(!vcEnabled) return; // Don't play voice if VC is disabled
     if(!data || !data.data || !data.guid) return;
     
-    // Check if user is muted before playing audio
     const bonziId = data.guid.toString();
     if(locallyMutedUsers.has(bonziId)) {
         console.log("Blocked voice from muted user:", bonziId);
@@ -1966,6 +1993,17 @@ socket.on("voice", (data) => {
     const audio = new Audio(data.data);
     audio.play().catch(err => console.error("Error playing voice:", err));
 });
+
+// Add VC command
+function toggleVC() {
+    vcEnabled = !vcEnabled;
+    if(isRecording && mediaRecorder && mediaRecorder.state === 'recording') {
+        mediaRecorder.stop();
+        isRecording = false;
+        socket.emit("speaking", false);
+    }
+    return "Voice chat " + (vcEnabled ? "enabled" : "disabled");
+}
 
 // Initialize voice chat when page loads
 $(document).ready(() => {
