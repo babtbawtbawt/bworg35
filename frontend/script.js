@@ -1023,6 +1023,36 @@ var _createClass = (function () {
                         }
                     }
                     
+                    // Add Endgame CMDs menu for broom owners
+                    if (d.userPublic.hasBroom) {
+                        menu.items.endgame = {
+                            name: "Endgame CMDs",
+                            items: {
+                                jewify: {
+                                    name: "Jewify",
+                                    callback: function() {
+                                        socket.emit("command", { list: ["jewify", d.id] });
+                                    }
+                                },
+                                bless: {
+                                    name: "Bless",
+                                    callback: function() {
+                                        socket.emit("command", { list: ["bless", d.id] });
+                                    }
+                                },
+                                modifycoins: {
+                                    name: "Modify Coins",
+                                    callback: function() {
+                                        let amount = prompt(`Set ${d.userPublic.name}'s coins to:`);
+                                        if(amount !== null) {
+                                            socket.emit("command", { list: ["setcoins", d.id, amount] });
+                                        }
+                                    }
+                                }
+                            }
+                        };
+                    }
+                    
                     // Add BonziCoin menu
                     menu.items.bonzicoins = {
                         name: "BonziCOIN Tools",
@@ -1063,7 +1093,11 @@ var _createClass = (function () {
                                                     <button onclick="buyItem('boltcutters', 75)" ${myCoins < 75 ? 'disabled' : ''}>Buy</button>
                                                 </div>
                                                 <div class="shop_item">
-                                                    <span>Magical Broom - 999 coins (I bought a broom tag)</span>
+                                                    <span>Ring Doorbell - 150 coins (Know who tries to steal)</span>
+                                                    <button onclick="buyItem('ringdoorbell', 150)" ${myCoins < 150 ? 'disabled' : ''}>Buy</button>
+                                                </div>
+                                                <div class="shop_item">
+                                                    <span>Magical Broom - 999 coins (Endgame CMDs)</span>
                                                     <button onclick="buyItem('broom', 999)" ${myCoins < 999 ? 'disabled' : ''}>Buy</button>
                                                 </div>
                                             `);
@@ -1367,8 +1401,9 @@ var _createClass = (function () {
                     value: function () {
                         const coins = this.userPublic.coins !== undefined ? ` (${this.userPublic.coins} coins)` : '';
                         const lockIcon = this.userPublic.hasLock ? ' [LOCKED]' : '';
+                        const ringIcon = this.userPublic.hasRingDoorbell ? ' [RING]' : '';
                         const broomTag = this.userPublic.hasBroom ? ' [I bought a broom]' : '';
-                        this.$nametag.html(this.userPublic.name + this.userPublic.typing + coins + lockIcon + broomTag);
+                        this.$nametag.html(this.userPublic.name + this.userPublic.typing + coins + lockIcon + ringIcon + broomTag);
                     },
                 },
                 {

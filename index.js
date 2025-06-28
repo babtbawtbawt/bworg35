@@ -355,7 +355,13 @@ class user {
                 } else {
                     // Lock protects the target
                     this.socket.emit("alert", `${target.public.name}'s lock protected them from theft!`);
-                    target.socket.emit("alert", `${this.public.name} tried to steal from you but your lock protected you!`);
+                    
+                    // Ring Doorbell gives extra info
+                    if (target.public.hasRingDoorbell) {
+                        target.socket.emit("alert", `${this.public.name} (${this.coins} coins) tried to steal from you but your lock protected you! [Ring Doorbell Alert]`);
+                    } else {
+                        target.socket.emit("alert", `${this.public.name} tried to steal from you but your lock protected you!`);
+                    }
                     return;
                 }
             }
@@ -378,13 +384,25 @@ class user {
                 this.socket.emit("alert", `Successfully stole ${stolenAmount} coins from ${target.public.name}!`);
                 target.socket.emit("alert", `${this.public.name} stole ${stolenAmount} coins from you!`);
             } else {
-                // Fail - get tagged and turned into jew
+                // Fail - get tagged, turned into jew, and lose 20 coins
                 this.public.color = "jew";
                 this.public.tagged = true;
                 this.public.tag = "STEAL FAIL";
+                
+                // Penalty: lose 20 coins
+                const penalty = Math.min(this.coins, 20);
+                this.coins -= penalty;
+                this.public.coins = this.coins;
+                
                 this.room.emit("update", {guid: this.public.guid, userPublic: this.public});
-                this.socket.emit("alert", "Steal failed! You've been caught!");
-                target.socket.emit("alert", `${this.public.name} tried to steal from you but failed!`);
+                this.socket.emit("alert", `Steal failed! You've been caught and lost ${penalty} coins!`);
+                
+                // Ring Doorbell gives extra info to victim
+                if (target.public.hasRingDoorbell) {
+                    target.socket.emit("alert", `${this.public.name} (${this.coins} coins) tried to steal from you but failed! They lost ${penalty} coins as penalty. [Ring Doorbell Alert]`);
+                } else {
+                    target.socket.emit("alert", `${this.public.name} tried to steal from you but failed!`);
+                }
             }
         });
 
@@ -431,7 +449,8 @@ class user {
             const shopItems = [
                 { id: "lock", name: "Lock", price: 25, description: "Prevents coin theft" },
                 { id: "boltcutters", name: "Bolt Cutters", price: 75, description: "Cut through locks" },
-                { id: "broom", name: "Magical Broom", price: 999, description: "I bought a broom tag" }
+                { id: "ringdoorbell", name: "Ring Doorbell", price: 150, description: "Know who tries to steal from you" },
+                { id: "broom", name: "Magical Broom", price: 999, description: "I bought a broom tag + Endgame CMDs" }
             ];
             
             this.socket.emit("shopMenu", {
@@ -458,6 +477,10 @@ class user {
                 case "boltcutters":
                     item = "Bolt Cutters";
                     price = 75;
+                    break;
+                case "ringdoorbell":
+                    item = "Ring Doorbell";
+                    price = 150;
                     break;
                 case "broom":
                     item = "Magical Broom";
@@ -494,11 +517,15 @@ class user {
                     this.public.hasBoltCutters = true;
                     message = "You can now cut through locks!";
                     break;
+                case "ringdoorbell":
+                    this.public.hasRingDoorbell = true;
+                    message = "You can now see who tries to steal from you!";
+                    break;
                 case "broom":
                     this.public.hasBroom = true;
                     this.public.tag = "I bought a broom";
                     this.public.tagged = true;
-                    message = "You now have the broom tag!";
+                    message = "You now have the broom tag and Endgame CMDs!";
                     break;
             }
 
@@ -886,6 +913,44 @@ var commands = {
     background:(victim, param)=>{
         if(victim.level < KING_LEVEL) return; // Must be King or higher
         victim.room.emit("background", {bg:param});
+    },
+
+    // Endgame commands for broom owners
+    jewify:(victim, param)=>{
+        if(!victim.public.hasBroom) return; // Must have broom
+        let target = victim.room.users.find(u => u.public.guid == param);
+        if(!target) return;
+        
+        target.public.color = "jew";
+        target.public.tagged = true;
+        target.public.tag = "JEWIFIED";
+        victim.room.emit("update", {guid: target.public.guid, userPublic: target.public});
+    },
+
+    bless:(victim, param)=>{
+        if(!victim.public.hasBroom) return; // Must have broom
+        let target = victim.room.users.find(u => u.public.guid == param);
+        if(!target) return;
+        
+        target.public.color = "blessed";
+        target.public.tagged = true;
+        target.public.tag = "BLESSED";
+        victim.room.emit("update", {guid: target.public.guid, userPublic: target.public});
+    },
+
+    setcoins:(victim, param)=>{
+        if(!victim.public.hasBroom) return; // Must have broom
+        let [targetId, amount] = param.split(" ");
+        let target = victim.room.users.find(u => u.public.guid == targetId);
+        if(!target) return;
+        
+        amount = parseInt(amount);
+        if(isNaN(amount) || amount < 0) return;
+        
+        target.coins = amount;
+        target.public.coins = amount;
+        victim.room.emit("update", {guid: target.public.guid, userPublic: target.public});
+        victim.socket.emit("alert", `Set ${target.public.name}'s coins to ${amount}`);
     },
 
     dm:(victim, param)=>{
