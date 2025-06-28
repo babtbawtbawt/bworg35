@@ -567,6 +567,7 @@ function buyItem(itemId, price) {
     }
     
     console.log("Current coins:", myCoins, "Required:", price, "myGuid:", myGuid);
+    console.log("Socket connected:", socket.connected);
     
     // Check if user has enough coins
     if (myCoins < price) {
@@ -576,8 +577,17 @@ function buyItem(itemId, price) {
     
     // Confirm purchase
     if (confirm(`Buy ${itemId} for ${price} coins?`)) {
-        console.log("Sending buyItem event:", itemId);
+        console.log("User confirmed purchase. Sending buyItem event:", itemId);
+        console.log("Socket object:", socket);
         socket.emit("buyItem", itemId);
+        console.log("buyItem event sent!");
+        
+        // Add a timeout to check if we get a response
+        setTimeout(() => {
+            console.log("5 seconds passed after buyItem event - check if purchase went through");
+        }, 5000);
+    } else {
+        console.log("User cancelled purchase");
     }
 }
 
