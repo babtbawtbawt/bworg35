@@ -155,6 +155,36 @@ background-color: #403060;
         90%{color: #FF00FF;}
         100%{color: red;}
     }
+    .shop_item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 10px;
+        margin: 5px 0;
+        background: rgba(255,255,255,0.1);
+        border-radius: 5px;
+    }
+    .shop_item button {
+        padding: 5px 10px;
+        background: #6d3399;
+        color: white;
+        border: none;
+        border-radius: 3px;
+        cursor: pointer;
+    }
+    .shop_item button:hover {
+        background: #8d4db9;
+    }
+    .shop_item button:disabled {
+        background: #666;
+        cursor: not-allowed;
+        opacity: 0.5;
+    }
+    #shop_balance {
+        font-size: 18px;
+        margin: 10px 0;
+        font-weight: bold;
+    }
 </style>
 </head>
 <body>
@@ -191,7 +221,13 @@ background-color: #403060;
 		</tr></table>
 
 		<div id="page_login" class="page">
-			<div id="login_readme">Welcome to BonziWORLD!<br>This is a reconstruction of early BW.org 6.9.16 LEAKED BETA (feb 11 2024)</div>
+			<div id="login_readme" class="card_list">
+				New BonziCOINS. Only for a limited time though.
+				<div class="card">
+					Welcome to BonziWORLD!
+					<p>This is a reconstruction of early BW.org 6.9.16 LEAKED BETA (feb 11 2024)</p>
+				</div>
+			</div>
 			<div id="login_card" style="display:none">
 				<input id="login_name" type="text" placeholder="Nickname">
 				<input id="login_room" type="text" placeholder="Room ID (Optional)">
@@ -333,6 +369,15 @@ background-color: #403060;
 				<img src="img/ban/logo.png"><br>
                 <h1>We see you</h1>
                 We see you. Don't move until this message goes away.
+			</div>
+		</div>
+
+		<div id="shop" class="page" style="display:none">
+			<div class="message_cont">
+				<h1>BonziCoin Shop</h1>
+				<div id="shop_balance">Your Balance: <span id="balance_amount">0</span> coins</div>
+				<div id="shop_items"></div>
+				<button onclick="$('#shop').hide()">Close Shop</button>
 			</div>
 		</div>
 

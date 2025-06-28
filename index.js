@@ -64,6 +64,8 @@ class user {
         this.ip = getRealIP(socket);
         this.guid = guidGen();
         this.room = null;
+        this.coins = 100; // Starting coins
+        this.lastWork = 0; // Last work timestamp
         this.public = {
             color: "purple",
             name: "Anonymous",
@@ -75,7 +77,8 @@ class user {
             tagged: false,
             typing: "",
             voiceMuted: false,
-            speaking: false
+            speaking: false,
+            coins: this.coins // Make coins public
         };
         this.loggedin = false;
         this.level = 0;
@@ -317,6 +320,222 @@ class user {
                   },config.slowmode);
           }
           });
+
+        // Add coin handlers
+        this.socket.on("stealCoins", (targetId) => {
+            if(targetId === this.guid) {
+                this.socket.emit("alert", "You can't steal from yourself!");
+                return;
+            }
+
+            let target = this.room.users.find(u => u.public.guid === targetId);
+            if(!target) return;
+
+            // Check if target has a lock
+            if(target.public.hasLock) {
+                // Check if thief has bolt cutters
+                if(this.public.hasBoltCutters) {
+                    // Bolt cutters break the lock
+                    target.public.hasLock = false;
+                    this.public.hasBoltCutters = false; // Bolt cutters are consumed
+                    
+                    let stolenAmount = Math.floor(target.coins * 0.5);
+                    target.coins -= stolenAmount;
+                    this.coins += stolenAmount;
+                    
+                    target.public.coins = target.coins;
+                    this.public.coins = this.coins;
+                    
+                    this.room.emit("update", {guid: target.public.guid, userPublic: target.public});
+                    this.room.emit("update", {guid: this.public.guid, userPublic: this.public});
+                    
+                    this.socket.emit("alert", `Used bolt cutters to break ${target.public.name}'s lock and stole ${stolenAmount} coins!`);
+                    target.socket.emit("alert", `${this.public.name} used bolt cutters to break your lock and stole ${stolenAmount} coins!`);
+                    return;
+                } else {
+                    // Lock protects the target
+                    this.socket.emit("alert", `${target.public.name}'s lock protected them from theft!`);
+                    target.socket.emit("alert", `${this.public.name} tried to steal from you but your lock protected you!`);
+                    return;
+                }
+            }
+
+            // Normal steal attempt (no lock or lock was broken)
+            // 50% chance of success
+            if(Math.random() < 0.5) {
+                // Success - steal 50% of their coins
+                let stolenAmount = Math.floor(target.coins * 0.5);
+                target.coins -= stolenAmount;
+                this.coins += stolenAmount;
+                
+                // Update both users' public coin amounts
+                target.public.coins = target.coins;
+                this.public.coins = this.coins;
+                
+                this.room.emit("update", {guid: target.public.guid, userPublic: target.public});
+                this.room.emit("update", {guid: this.public.guid, userPublic: this.public});
+                
+                this.socket.emit("alert", `Successfully stole ${stolenAmount} coins from ${target.public.name}!`);
+                target.socket.emit("alert", `${this.public.name} stole ${stolenAmount} coins from you!`);
+            } else {
+                // Fail - get tagged and turned into jew
+                this.public.color = "jew";
+                this.public.tagged = true;
+                this.public.tag = "STEAL FAIL";
+                this.room.emit("update", {guid: this.public.guid, userPublic: this.public});
+                this.socket.emit("alert", "Steal failed! You've been caught!");
+                target.socket.emit("alert", `${this.public.name} tried to steal from you but failed!`);
+            }
+        });
+
+        this.socket.on("gambleCoins", (amount) => {
+            amount = parseInt(amount);
+            if(isNaN(amount) || amount <= 0 || amount > this.coins) {
+                this.socket.emit("alert", "Invalid gambling amount!");
+                return;
+            }
+
+            // 45% chance to win (house edge)
+            if(Math.random() < 0.45) {
+                this.coins += amount;
+                this.socket.emit("alert", `You won ${amount} coins!`);
+            } else {
+                this.coins -= amount;
+                this.socket.emit("alert", `You lost ${amount} coins!`);
+            }
+            
+            this.public.coins = this.coins;
+            this.room.emit("update", {guid: this.public.guid, userPublic: this.public});
+        });
+
+        this.socket.on("work", () => {
+            const now = Date.now();
+            const cooldown = 5 * 60 * 1000; // 5 minutes
+            
+            if(now - this.lastWork < cooldown) {
+                this.socket.emit("alert", `You must wait ${Math.ceil((cooldown - (now - this.lastWork)) / 1000)} seconds before working again!`);
+                return;
+            }
+
+            const earnedCoins = Math.floor(Math.random() * 30) + 20; // 20-50 coins
+            this.coins += earnedCoins;
+            this.public.coins = this.coins;
+            this.lastWork = now;
+            
+            this.room.emit("update", {guid: this.public.guid, userPublic: this.public});
+            this.socket.emit("alert", `You earned ${earnedCoins} coins from working!`);
+        });
+
+        // Shop system
+        this.socket.on("getShop", () => {
+            const shopItems = [
+                { id: "lock", name: "Lock", price: 25, description: "Prevents coin theft" },
+                { id: "boltcutters", name: "Bolt Cutters", price: 75, description: "Cut through locks" },
+                { id: "broom", name: "Magical Broom", price: 999, description: "I bought a broom tag" }
+            ];
+            
+            this.socket.emit("shopMenu", {
+                balance: this.coins,
+                items: shopItems
+            });
+        });
+
+        this.socket.on("buyItem", (itemId) => {
+            if(!itemId || typeof itemId !== "string") {
+                this.socket.emit("purchaseFailed", { reason: "Invalid item ID" });
+                return;
+            }
+
+            let item, price;
+            switch(itemId) {
+                case "lock":
+                    item = "Lock";
+                    price = 25;
+                    break;
+                case "boltcutters":
+                    item = "Bolt Cutters";
+                    price = 75;
+                    break;
+                case "broom":
+                    item = "Magical Broom";
+                    price = 999;
+                    break;
+                default:
+                    this.socket.emit("purchaseFailed", { reason: "Item not found" });
+                    return;
+            }
+
+            // Check if user has enough coins
+            if(this.coins < price) {
+                this.socket.emit("purchaseFailed", { reason: `You need ${price} coins but only have ${this.coins}` });
+                return;
+            }
+
+            // Deduct coins
+            this.coins -= price;
+            this.public.coins = this.coins;
+
+            // Apply item effects
+            let message = "";
+            switch(itemId) {
+                case "lock":
+                    this.public.hasLock = true;
+                    message = "You are now protected from theft!";
+                    break;
+                case "boltcutters":
+                    this.public.hasBoltCutters = true;
+                    message = "You can now cut through locks!";
+                    break;
+                case "broom":
+                    this.public.hasBroom = true;
+                    this.public.tag = "I bought a broom";
+                    this.public.tagged = true;
+                    message = "You now have the broom tag!";
+                    break;
+            }
+
+            // Update user data
+            this.room.emit("update", {guid: this.public.guid, userPublic: this.public});
+            this.socket.emit("purchaseSuccess", { item: item, message: message });
+        });
+
+        // Donate coins
+        this.socket.on("donateCoins", (data) => {
+            if(!data || !data.target || !data.amount) {
+                this.socket.emit("alert", "Invalid donation data!");
+                return;
+            }
+
+            let amount = parseInt(data.amount);
+            if(isNaN(amount) || amount <= 0 || amount > this.coins) {
+                this.socket.emit("alert", "Invalid donation amount!");
+                return;
+            }
+
+            let target = this.room.users.find(u => u.public.guid === data.target);
+            if(!target) {
+                this.socket.emit("alert", "Target user not found!");
+                return;
+            }
+
+            if(target.guid === this.guid) {
+                this.socket.emit("alert", "You can't donate to yourself!");
+                return;
+            }
+
+            // Transfer coins
+            this.coins -= amount;
+            target.coins += amount;
+            this.public.coins = this.coins;
+            target.public.coins = target.coins;
+
+            // Update both users
+            this.room.emit("update", {guid: this.public.guid, userPublic: this.public});
+            this.room.emit("update", {guid: target.public.guid, userPublic: target.public});
+
+            this.socket.emit("alert", `You donated ${amount} coins to ${target.public.name}!`);
+            target.socket.emit("alert", `${this.public.name} donated ${amount} coins to you!`);
+        });
     }
 }
 

@@ -651,90 +651,37 @@ var _createClass = (function () {
             "undefined" == typeof b ? (this.id = s4() + s4()) : (this.id = b),
             (this.rng = new Math.seedrandom(this.seed || this.id || Math.random())),
             (this.selContainer = "#content"),
-            (this.$container = $(this.selContainer));
-
-            // Create DOM elements
+            (this.$container = $(this.selContainer)),
             this.$container.append(
-                `<div id='bonzi_${this.id}' class='bonzi'>
-                    <div class='bonzi_name'></div>
-                    <div class='bonzi_placeholder'></div>
-                    <div style='display:none' class='bubble'>
-                        <p class='bubble-content'></p>
-                    </div>
-                </div>`
-            );
-
-            // Set up element references
-            this.selElement = "#bonzi_" + this.id;
-            this.selDialog = this.selElement + " > .bubble";
-            this.selDialogCont = this.selElement + " > .bubble > p";
-            this.selNametag = this.selElement + " > .bonzi_name";
-            this.selCanvas = this.selElement + " > .bonzi_placeholder";
-            
-            $(this.selCanvas).width(this.data.size.x).height(this.data.size.y);
-            this.$element = $(this.selElement);
-            this.$canvas = $(this.selCanvas);
-            this.$dialog = $(this.selDialog);
-            this.$dialogCont = $(this.selDialogCont);
-            this.$nametag = $(this.selNametag);
-            
+                "\n\t\t\t<div id='bonzi_" +
+                this.id +
+                "' class='bonzi'>\n\t\t\t\t<div class='bonzi_name'></div>\n\t\t\t\t\t<div class='bonzi_placeholder'></div>\n\t\t\t\t<div style='display:none' class='bubble'>\n\t\t\t\t\t<p class='bubble-content'></p>\n\t\t\t\t</div>\n\t\t\t</div>\n\t\t"
+            ),
+            (this.selElement = "#bonzi_" + this.id),
+            (this.selDialog = this.selElement + " > .bubble"),
+            (this.selDialogCont = this.selElement + " > .bubble > p"),
+            (this.selNametag = this.selElement + " > .bonzi_name"),
+            (this.selCanvas = this.selElement + " > .bonzi_placeholder"),
+            $(this.selCanvas).width(this.data.size.x).height(this.data.size.y),
+            (this.$element = $(this.selElement)),
+            (this.$canvas = $(this.selCanvas)),
+            (this.$dialog = $(this.selDialog)),
+            (this.$dialogCont = $(this.selDialogCont)),
+            (this.$nametag = $(this.selNametag)),
             this.updateName();
 
-            // Initialize sprite with proper error handling
-            try {
-                // Get spritesheet from BonziData
-                const spriteData = {
-                    images: [`./img/bonzi/${this.color}.png`],
-                    frames: this.data.sprite.frames,
-                    animations: this.data.sprite.animations
-                };
-                
-                // Create new spritesheet
-                const spriteSheet = new createjs.SpriteSheet(spriteData);
-                
-                // Verify spritesheet loaded properly
-                if (!spriteSheet.complete || !spriteSheet.getAnimation("idle")) {
-                    throw new Error("Failed to load spritesheet");
-                }
-                
-                // Create sprite with verified spritesheet
-                this.sprite = new createjs.Sprite(spriteSheet, "idle");
-                BonziHandler.stage.addChild(this.sprite);
-                
-            } catch (err) {
-                console.error("Sprite initialization error:", err);
-                
-                // Emergency fallback - create new purple spritesheet
-                try {
-                    const fallbackSheet = new createjs.SpriteSheet({
-                        images: ["./img/bonzi/purple.png"],
-                        frames: this.data.sprite.frames,
-                        animations: this.data.sprite.animations
-                    });
-                    
-                    if (!fallbackSheet.complete || !fallbackSheet.getAnimation("idle")) {
-                        throw new Error("Failed to load fallback spritesheet");
-                    }
-                    
-                    this.sprite = new createjs.Sprite(fallbackSheet, "idle");
-                    this.color = "purple";
-                    BonziHandler.stage.addChild(this.sprite);
-                    
-                } catch (fallbackErr) {
-                    console.error("Critical sprite error:", fallbackErr);
-                    throw new Error("Could not initialize sprite system");
-                }
-            }
+            // Initialize sprite
+            const spriteSheet = BonziSprites.get(this.color);
+            this.sprite = new createjs.Sprite(spriteSheet, "idle");
+            BonziHandler.stage.addChild(this.sprite);
 
             // Set up event handlers
-            this.generate_event = function(a, b, c) {
+            this.generate_event = function (a, b, c) {
                 var d = this;
-                a[b](function(a) {
+                a[b](function (a) {
                     d[c](a);
                 });
             };
-
-            // Rest of constructor...
             this.generate_event(this.$canvas, "mousedown", "mousedown");
             this.generate_event($(window), "mousemove", "mousemove");
             this.generate_event($(window), "mouseup", "mouseup");
@@ -764,32 +711,6 @@ var _createClass = (function () {
                                 callback: function () {
                                     socket.emit("command", { list: ["hail", d.userPublic.name] });
                                 },
-                            },
-                            localvoicemute: {
-                                name: function() {
-                                    return locallyMutedUsers.has(d.id) ? "Unmute Voice" : "Mute Voice";
-                                },
-                                callback: function () {
-                                    toggleVoiceMute(d.id);
-                                }
-                            },
-                            hidecolor: {
-                                name: function() {
-                                    return hiddenColorUsers.has(d.id) ? "Show Color" : "Hide Color";
-                                },
-                                callback: function () {
-                                    const bonziId = d.id.toString();
-                                    if(hiddenColorUsers.has(bonziId)) {
-                                        hiddenColorUsers.delete(bonziId);
-                                        // Restore original color
-                                        d.color = d.userPublic.color;
-                                    } else {
-                                        hiddenColorUsers.add(bonziId);
-                                        // Force purple color locally
-                                        d.color = "purple";
-                                    }
-                                    d.updateSprite();
-                                }
                             },
                             dm: {
                                 name: "Private Message",
@@ -2129,17 +2050,12 @@ $(document).ready(function () {
                         if (c && c.userPublic) {
                             c.userPublic = usersPublic[b];
                             c.updateName();
-                            var d = hiddenColorUsers.has(b.toString()) ? "purple" : usersPublic[b].color;
+                            var d = usersPublic[b].color;
                             c.color != d && ((c.color = d), c.updateSprite());
                         }
                     } else {
                         try {
                             bonzis[b] = new Bonzi(b, usersPublic[b]);
-                            // Apply hidden color if needed
-                            if(hiddenColorUsers.has(b.toString())) {
-                                bonzis[b].color = "purple";
-                                bonzis[b].updateSprite();
-                            }
                         } catch (e) {
                             console.error("Failed to create bonzi:", b, e);
                         }
@@ -2150,147 +2066,6 @@ $(document).ready(function () {
         );
     })();
 }); // Close document.ready
-
-// Add voice chat variables
-let mediaRecorder = null;
-let audioChunks = [];
-let isRecording = false;
-let locallyMutedUsers = new Set();
-let vcEnabled = true; // Track if voice chat is enabled
-
-// Initialize voice chat
-async function initVoiceChat() {
-    try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        mediaRecorder = new MediaRecorder(stream);
-        
-        mediaRecorder.ondataavailable = (event) => {
-            audioChunks.push(event.data);
-        };
-        
-        mediaRecorder.onstop = () => {
-            const audioBlob = new Blob(audioChunks);
-            const reader = new FileReader();
-            reader.readAsDataURL(audioBlob);
-            reader.onloadend = () => {
-                socket.emit("voice", reader.result);
-                audioChunks = [];
-            };
-        };
-
-        // Set up voice chat key controls
-        document.addEventListener('keydown', (e) => {
-            if(!vcEnabled) return; // Don't do anything if VC is disabled
-            if(e.code === 'KeyV' && !isRecording && mediaRecorder && mediaRecorder.state === 'inactive') {
-                isRecording = true;
-                audioChunks = [];
-                mediaRecorder.start();
-                socket.emit("speaking", true);
-            }
-        });
-
-        document.addEventListener('keyup', (e) => {
-            if(!vcEnabled) return; // Don't do anything if VC is disabled
-            if(e.code === 'KeyV' && isRecording && mediaRecorder && mediaRecorder.state === 'recording') {
-                isRecording = false;
-                mediaRecorder.stop();
-                socket.emit("speaking", false);
-            }
-        });
-
-        console.log("Voice chat initialized successfully");
-    } catch (err) {
-        console.error("Error initializing voice chat:", err);
-    }
 }
-
-// Handle incoming voice chat
-socket.on("voice", (data) => {
-    if(!vcEnabled) return; // Don't play voice if VC is disabled
-    if(!data || !data.data || !data.guid) return;
-    
-    const bonziId = data.guid.toString();
-    if(locallyMutedUsers.has(bonziId)) {
-        console.log("Blocked voice from muted user:", bonziId);
-        return;
-    }
-    
-    const audio = new Audio(data.data);
-    audio.play().catch(err => console.error("Error playing voice:", err));
-});
-
-// Add VC command
-function toggleVC() {
-    vcEnabled = !vcEnabled;
-    if(isRecording && mediaRecorder && mediaRecorder.state === 'recording') {
-        mediaRecorder.stop();
-        isRecording = false;
-        socket.emit("speaking", false);
-    }
-    return "Voice chat " + (vcEnabled ? "enabled" : "disabled");
-}
-
-// Initialize voice chat when page loads
-$(document).ready(() => {
-    initVoiceChat().catch(err => console.error("Error in voice chat init:", err));
-});
-
-// Update the context menu mute callback
-function toggleVoiceMute(id) {
-    const bonziId = id.toString();
-    if(locallyMutedUsers.has(bonziId)) {
-        locallyMutedUsers.delete(bonziId);
-        console.log("Unmuted user:", bonziId);
-    } else {
-        locallyMutedUsers.add(bonziId);
-        console.log("Muted user:", bonziId);
-    }
-}
-
-// Add tracking for hidden colors
-let hiddenColorUsers = new Set();
-
-// Add cookie handling functions
-function setCookie(name, value, minutes) {
-    let expires = "";
-    if (minutes) {
-        const date = new Date();
-        date.setTime(date.getTime() + (minutes * 60 * 1000));
-        expires = "; expires=" + date.toUTCString();
-    }
-    document.cookie = name + "=" + (value || "") + expires + "; path=/";
-}
-
-function getCookie(name) {
-    const nameEQ = name + "=";
-    const ca = document.cookie.split(';');
-    for(let i = 0; i < ca.length; i++) {
-        let c = ca[i];
-        while (c.charAt(0) == ' ') c = c.substring(1, c.length);
-        if (c.indexOf(nameEQ) == 0) return c.substring(nameEQ.length, c.length);
-    }
-    return null;
-}
-
-// Add to socket connection setup
-socket.on("setRabbiCookie", (data) => {
-    setCookie("rabbiExpiry", data.expiry, data.duration);
-});
-
-socket.on("clearRabbiCookie", () => {
-    setCookie("rabbiExpiry", "", -1); // Expire the cookie
-});
-
-// Modify login to include rabbi expiry
-socket.on("login", () => {
-    const rabbiExpiry = getCookie("rabbiExpiry");
-    socket.emit("login", {
-        name: $("#login_name").val(),
-        room: $("#login_room").val(),
-        rabbiExpiry: rabbiExpiry
-    });
-});
-
-} // Close the outer function
 
 
