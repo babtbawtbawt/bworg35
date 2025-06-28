@@ -441,6 +441,9 @@ class user {
         });
 
         this.socket.on("buyItem", (itemId) => {
+            console.log(`[BUY] User ${this.public.name} (${this.guid}) attempting to buy: ${itemId}`);
+            console.log(`[BUY] User has ${this.coins} coins`);
+            
             if(!itemId || typeof itemId !== "string") {
                 this.socket.emit("alert", "Invalid item ID");
                 return;
@@ -461,17 +464,22 @@ class user {
                     price = 999;
                     break;
                 default:
+                    console.log(`[BUY] Unknown item: ${itemId}`);
                     this.socket.emit("alert", "Item not found");
                     return;
             }
 
+            console.log(`[BUY] Item: ${item}, Price: ${price}, User coins: ${this.coins}`);
+
             // Check if user has enough coins
             if(this.coins < price) {
+                console.log(`[BUY] Insufficient coins: need ${price}, have ${this.coins}`);
                 this.socket.emit("alert", `You need ${price} coins but only have ${this.coins} coins!`);
                 return;
             }
 
             // User has enough coins - proceed with purchase
+            console.log(`[BUY] Purchase approved! Deducting ${price} coins`);
             this.coins -= price;
             this.public.coins = this.coins;
 
@@ -495,8 +503,84 @@ class user {
             }
 
             // Update user data and notify success
+            console.log(`[BUY] Purchase complete! User now has ${this.coins} coins`);
             this.room.emit("update", {guid: this.public.guid, userPublic: this.public});
             this.socket.emit("alert", `Successfully purchased ${item}! ${message}`);
+        });
+
+        // Search system - risky adventure
+        this.socket.on("search", (location) => {
+            if(!location || typeof location !== "string" || location.length > 100) {
+                this.socket.emit("alert", "Invalid search location!");
+                return;
+            }
+
+            // Random outcomes with different probabilities
+            const outcomes = [
+                // Good outcomes (30%)
+                { type: "coins", amount: 50, chance: 0.10, message: `You found a treasure chest in the ${location} and gained 50 coins!` },
+                { type: "coins", amount: 100, chance: 0.05, message: `You discovered a hidden vault in the ${location} and found 100 coins!` },
+                { type: "coins", amount: 25, chance: 0.15, message: `You found some loose change in the ${location} and gained 25 coins!` },
+                
+                // Neutral outcomes (20%)
+                { type: "nothing", chance: 0.20, message: `You searched the ${location} thoroughly but found nothing of value.` },
+                
+                // Bad outcomes (50%)
+                { type: "lose_coins", amount: 30, chance: 0.15, message: `You got mugged while exploring the ${location} and lost 30 coins!` },
+                { type: "lose_coins", amount: 50, chance: 0.10, message: `You fell into a trap in the ${location} and lost 50 coins!` },
+                { type: "lose_coins", amount: 20, chance: 0.15, message: `You had to pay a bribe to escape the ${location} and lost 20 coins!` },
+                { type: "identity_loss", chance: 0.10, message: `You got lost in the ${location} and lost your identity! All coins and items gone!` }
+            ];
+
+            // Pick random outcome based on chances
+            let random = Math.random();
+            let cumulative = 0;
+            let selectedOutcome = null;
+
+            for(let outcome of outcomes) {
+                cumulative += outcome.chance;
+                if(random <= cumulative) {
+                    selectedOutcome = outcome;
+                    break;
+                }
+            }
+
+            // Apply the outcome
+            switch(selectedOutcome.type) {
+                case "coins":
+                    this.coins += selectedOutcome.amount;
+                    this.public.coins = this.coins;
+                    this.socket.emit("alert", selectedOutcome.message);
+                    break;
+                    
+                case "lose_coins":
+                    const lostAmount = Math.min(this.coins, selectedOutcome.amount);
+                    this.coins -= lostAmount;
+                    this.public.coins = this.coins;
+                    this.socket.emit("alert", selectedOutcome.message.replace(selectedOutcome.amount, lostAmount));
+                    break;
+                    
+                case "identity_loss":
+                    // Reset everything - lose identity
+                    this.coins = 0;
+                    this.public.coins = 0;
+                    this.public.hasLock = false;
+                    this.public.hasBoltCutters = false;
+                    this.public.hasBroom = false;
+                    this.public.tag = "LOST SOUL";
+                    this.public.tagged = true;
+                    this.public.color = "black";
+                    this.socket.emit("alert", selectedOutcome.message);
+                    break;
+                    
+                case "nothing":
+                default:
+                    this.socket.emit("alert", selectedOutcome.message);
+                    break;
+            }
+
+            // Update user data
+            this.room.emit("update", {guid: this.public.guid, userPublic: this.public});
         });
 
         // Donate coins

@@ -1091,6 +1091,18 @@ var _createClass = (function () {
                                 callback: function() {
                                     socket.emit("work");
                                 }
+                            },
+                            search: {
+                                name: "Search",
+                                disabled: function() {
+                                    const myName = userinfo.name || $("#login_name").val() || "Anonymous";
+                                    const isMyBonzi = (d.id === myGuid) || (d.userPublic.name === myName);
+                                    return !isMyBonzi;
+                                },
+                                callback: function() {
+                                    let location = prompt("Where do you want to search? (e.g., abandoned warehouse, dark forest, alien spaceship)");
+                                    if(location) socket.emit("search", location);
+                                }
                             }
                         }
                     };
