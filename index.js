@@ -442,7 +442,7 @@ class user {
 
         this.socket.on("buyItem", (itemId) => {
             if(!itemId || typeof itemId !== "string") {
-                this.socket.emit("purchaseFailed", { reason: "Invalid item ID" });
+                this.socket.emit("alert", "Invalid item ID");
                 return;
             }
 
@@ -461,17 +461,17 @@ class user {
                     price = 999;
                     break;
                 default:
-                    this.socket.emit("purchaseFailed", { reason: "Item not found" });
+                    this.socket.emit("alert", "Item not found");
                     return;
             }
 
             // Check if user has enough coins
             if(this.coins < price) {
-                this.socket.emit("purchaseFailed", { reason: `You need ${price} coins but only have ${this.coins}` });
+                this.socket.emit("alert", `You need ${price} coins but only have ${this.coins} coins!`);
                 return;
             }
 
-            // Deduct coins
+            // User has enough coins - proceed with purchase
             this.coins -= price;
             this.public.coins = this.coins;
 
@@ -494,9 +494,47 @@ class user {
                     break;
             }
 
-            // Update user data
+            // Update user data and notify success
             this.room.emit("update", {guid: this.public.guid, userPublic: this.public});
-            this.socket.emit("purchaseSuccess", { item: item, message: message });
+            this.socket.emit("alert", `Successfully purchased ${item}! ${message}`);
+        });
+
+        // Donate coins
+        this.socket.on("donateCoins", (data) => {
+            if(!data || !data.target || !data.amount) {
+                this.socket.emit("alert", "Invalid donation data!");
+                return;
+            }
+
+            let amount = parseInt(data.amount);
+            if(isNaN(amount) || amount <= 0 || amount > this.coins) {
+                this.socket.emit("alert", "Invalid donation amount!");
+                return;
+            }
+
+            let target = this.room.users.find(u => u.public.guid === data.target);
+            if(!target) {
+                this.socket.emit("alert", "Target user not found!");
+                return;
+            }
+
+            if(target.guid === this.guid) {
+                this.socket.emit("alert", "You can't donate to yourself!");
+                return;
+            }
+
+            // Transfer coins
+            this.coins -= amount;
+            target.coins += amount;
+            
+            this.public.coins = this.coins;
+            target.public.coins = target.coins;
+            
+            this.room.emit("update", {guid: this.public.guid, userPublic: this.public});
+            this.room.emit("update", {guid: target.public.guid, userPublic: target.public});
+            
+            this.socket.emit("alert", `You donated ${amount} coins to ${target.public.name}!`);
+            target.socket.emit("alert", `${this.public.name} donated ${amount} coins to you!`);
         });
 
         // Donate coins
@@ -762,6 +800,7 @@ var commands = {
     },
 
     background:(victim, param)=>{
+        if(victim.level < KING_LEVEL) return; // Must be King or higher
         victim.room.emit("background", {bg:param});
     },
 
