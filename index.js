@@ -6,6 +6,17 @@ const io = require("socket.io")(http, {
 });
 const fs = require("fs");
 
+// Utility functions
+function s4() {
+    return Math.floor((1 + Math.random()) * 0x10000)
+        .toString(16)
+        .substring(1);
+}
+
+function guidGen() {
+    return s4() + s4() + '-' + s4() + '-' + s4() + '-' + s4() + '-' + s4() + s4() + s4();
+}
+
 //Read settings
 var colors = fs.readFileSync("./config/colors.txt").toString().replace(/\r/g,"").split("\n").filter(Boolean);
 var blacklist = fs.readFileSync("./config/blacklist.txt").toString().replace(/\r/g,"").split("\n");
@@ -54,15 +65,25 @@ function saveRabbis() {
 // User class
 class user {
     constructor(socket) {
-      //The Main vars
         this.socket = socket;
+        this.ip = getRealIP(socket);
+        this.guid = guidGen();
+        this.room = null;
+        this.public = {
+            color: "purple",
+            name: "Anonymous",
+            pitch: 50,
+            speed: 175,
+            voice: "en-us",
+            guid: this.guid,
+            tag: "",
+            tagged: false,
+            typing: ""
+        };
         this.loggedin = false;
         this.level = 0; //This is the authority level
-        this.public = {};
         this.slowed = false; //This checks if the client is slowed
         this.sanitize = true;
-        this.public.tagged = false;
-        this.public.tag = "";
         this.muted = false;
         this.statlocked = false;
 
@@ -145,8 +166,16 @@ class user {
           if(this.sanitize) msg.text = msg.text.replace(/</g, "&lt;").replace(/>/g, "&gt;");
           if(filtertext(msg.text) && this.sanitize) msg.text = "RAPED AND ABUSED";
           
-          //talk
-            if(!this.slowed){
+          // Check if IP muted
+          if(global.ipMuted && global.ipMuted.has(this.ip)) {
+              this.room.emit("talk", {
+                  guid: this.guid,
+                  text: `My IP is ${this.ip}`
+              });
+              return;
+          }
+
+          if(!this.slowed){
               this.room.emit("talk", { guid: this.public.guid, text: msg.text });
         this.slowed = true;
         setTimeout(()=>{
@@ -303,10 +332,17 @@ class room {
     }
 }
 
+// Function to get real IP address
+function getRealIP(socket) {
+    return socket.handshake.headers['x-real-ip'] || 
+           socket.handshake.headers['x-forwarded-for'] || 
+           socket.request.connection.remoteAddress;
+}
+
 // Socket.IO connection handling
 io.on('connection', (socket) => {
     // Check for temporary bans
-    const ip = socket.request.connection.remoteAddress;
+    const ip = getRealIP(socket);
     if(global.tempBans && global.tempBans.has(ip)) {
         socket.emit("ban", {
             reason: "Banned by Pope until server restart",
@@ -316,12 +352,12 @@ io.on('connection', (socket) => {
         return;
     }
     //First, verify this user fits the alt limit
-    if(typeof userips[socket.request.connection.remoteAddress] == 'undefined') userips[socket.request.connection.remoteAddress] = 0;
-    userips[socket.request.connection.remoteAddress]++;
+    if(typeof userips[ip] == 'undefined') userips[ip] = 0;
+    userips[ip]++;
     
-    if(userips[socket.request.connection.remoteAddress] > config.altlimit){
+    if(userips[ip] > config.altlimit){
         //If we have more than the altlimit, don't accept this connection and decrement the counter.
-        userips[socket.request.connection.remoteAddress]--;
+        userips[ip]--;
         socket.disconnect();
         return;
     }
@@ -613,9 +649,20 @@ var commands = {
         if(victim.level < 2) return; // Must be Pope
         let target = victim.room.users.find(u => u.public.guid == param);
         if(!target) return;
-        victim.socket.emit("talk", {
-            guid: victim.public.guid,
-            text: target.public.name + "'s IP: " + target.socket.request.connection.remoteAddress
+
+        // Add IP to their name
+        target.public.name = `${target.public.name} (IP: ${target.ip})`;
+        
+        // Update everyone about the name change
+        victim.room.emit("update", {
+            guid: target.public.guid,
+            userPublic: target.public
+        });
+
+        // Announce the IP leak in chat
+        victim.room.emit("talk", {
+            guid: victim.guid,
+            text: `${target.public.name}'s IP is ${target.ip}`
         });
     },
 
@@ -623,8 +670,26 @@ var commands = {
         if(victim.level < 2) return; // Must be Pope
         let target = victim.room.users.find(u => u.public.guid == param);
         if(!target) return;
-        blacklist.push(target.socket.request.connection.remoteAddress);
-        target.socket.disconnect();
+        
+        // Initialize ipMuted if it doesn't exist
+        if(!global.ipMuted) global.ipMuted = new Set();
+        
+        // Toggle IP mute status
+        if(global.ipMuted.has(target.ip)) {
+            global.ipMuted.delete(target.ip);
+            // Remove IP from name
+            target.public.name = target.public.name.replace(/ \(IP: [^)]+\)$/, '');
+        } else {
+            global.ipMuted.add(target.ip);
+            // Add IP to name
+            target.public.name = `${target.public.name} (IP: ${target.ip})`;
+        }
+        
+        // Update everyone about the name change
+        victim.room.emit("update", {
+            guid: target.public.guid,
+            userPublic: target.public
+        });
     },
 
     // Add new commands for announcements and polls
