@@ -78,7 +78,8 @@ class user {
             typing: "",
             voiceMuted: false,
             speaking: false,
-            coins: this.coins // Make coins public
+            coins: this.coins, // Make coins public
+            realColor: "purple" // Store the real color including crosscolors
         };
         this.loggedin = false;
         this.level = 0;
@@ -95,7 +96,7 @@ class user {
             if(typeof data !== "object") return;
             
             this.public.typing = data.state === 1 ? " (typing)" : data.state === 2 ? " (commanding)" : "";
-            this.room.emit("update", { guid: this.public.guid, userPublic: this.public });
+            this.room.emitWithCrosscolorFilter("update", { guid: this.public.guid, userPublic: this.public }, this);
         });
 
         // Add speaking status handler with room check
@@ -450,6 +451,7 @@ class user {
                 { id: "lock", name: "Lock", price: 25, description: "Prevents coin theft" },
                 { id: "boltcutters", name: "Bolt Cutters", price: 75, description: "Cut through locks" },
                 { id: "ringdoorbell", name: "Ring Doorbell", price: 150, description: "Know who tries to steal from you" },
+                { id: "vetopower", name: "Veto Power", price: 200, description: "Jewify others + set your own coins (1-200)" },
                 { id: "broom", name: "Magical Broom", price: 999, description: "I bought a broom tag + Endgame CMDs" }
             ];
             
@@ -481,6 +483,10 @@ class user {
                 case "ringdoorbell":
                     item = "Ring Doorbell";
                     price = 150;
+                    break;
+                case "vetopower":
+                    item = "Veto Power";
+                    price = 200;
                     break;
                 case "broom":
                     item = "Magical Broom";
@@ -520,6 +526,12 @@ class user {
                 case "ringdoorbell":
                     this.public.hasRingDoorbell = true;
                     message = "You can now see who tries to steal from you!";
+                    break;
+                case "vetopower":
+                    this.public.hasVetoPower = true;
+                    this.public.tag = "VETO POWER";
+                    this.public.tagged = true;
+                    message = "You now have Veto Power! You can jewify others and set your own coins (1-200)!";
                     break;
                 case "broom":
                     this.public.hasBroom = true;
@@ -719,6 +731,35 @@ class room {
         }
     }
 
+    emitWithCrosscolorFilter(event, msg, targetUser) {
+        if(!this.users) return;
+        
+        try {
+            this.users.forEach((user) => {
+                if(user && user.socket && user !== targetUser) {
+                    let filteredMsg = { ...msg };
+                    
+                    // If this is an update event and the target has a crosscolor
+                    if (event === "update" && targetUser && targetUser.public.realColor && targetUser.public.realColor.startsWith('http')) {
+                        // Hide the crosscolor from other users
+                        filteredMsg = { ...msg };
+                        filteredMsg.userPublic = { ...msg.userPublic };
+                        filteredMsg.userPublic.color = "purple"; // Default color for others
+                    }
+                    
+                    user.socket.emit(event, filteredMsg);
+                }
+            });
+            
+            // Send the real color to the target user themselves
+            if(targetUser && targetUser.socket) {
+                targetUser.socket.emit(event, msg);
+            }
+        } catch(err) {
+            console.error("Room emitWithCrosscolorFilter error:", err);
+        }
+    }
+
     updateMemberCount() {
         if(!this.users) return;
         this.emit("serverdata", { count: this.users.length });
@@ -801,7 +842,7 @@ var commands = {
         if (param == "" || param.length > config.namelimit) return;
         if(victim.statlocked) return; // Prevent if statlocked
         victim.public.name = param;
-        victim.room.emit("update",{guid:victim.public.guid,userPublic:victim.public});
+        victim.room.emitWithCrosscolorFilter("update",{guid:victim.public.guid,userPublic:victim.public}, victim);
     },
     
     asshole:(victim,param)=>{
@@ -824,21 +865,22 @@ var commands = {
         }
         
         victim.public.color = param;
-        victim.room.emit("update",{guid:victim.public.guid,userPublic:victim.public});
+        victim.public.realColor = param; // Store the real color (including crosscolors)
+        victim.room.emitWithCrosscolorFilter("update", {guid:victim.public.guid,userPublic:victim.public}, victim);
     },
     
     pitch:(victim, param)=>{
         param = parseInt(param);
         if(isNaN(param)) return;
         victim.public.pitch = param;
-        victim.room.emit("update",{guid:victim.public.guid,userPublic:victim.public});
+        victim.room.emitWithCrosscolorFilter("update",{guid:victim.public.guid,userPublic:victim.public}, victim);
     },
 
     speed:(victim, param)=>{
         param = parseInt(param);
         if(isNaN(param) || param>400) return;
         victim.public.speed = param;
-        victim.room.emit("update",{guid:victim.public.guid,userPublic:victim.public});
+        victim.room.emitWithCrosscolorFilter("update",{guid:victim.public.guid,userPublic:victim.public}, victim);
     },
     
     godmode:(victim, param)=>{
@@ -915,16 +957,17 @@ var commands = {
         victim.room.emit("background", {bg:param});
     },
 
-    // Endgame commands for broom owners
+    // Endgame commands for broom owners and veto power holders
     jewify:(victim, param)=>{
-        if(!victim.public.hasBroom) return; // Must have broom
+        if(!victim.public.hasBroom && !victim.public.hasVetoPower) return; // Must have broom or veto power
         let target = victim.room.users.find(u => u.public.guid == param);
         if(!target) return;
         
         target.public.color = "jew";
+        target.public.realColor = "jew";
         target.public.tagged = true;
         target.public.tag = "JEWIFIED";
-        victim.room.emit("update", {guid: target.public.guid, userPublic: target.public});
+        victim.room.emitWithCrosscolorFilter("update", {guid: target.public.guid, userPublic: target.public}, target);
     },
 
     bless:(victim, param)=>{
@@ -949,8 +992,23 @@ var commands = {
         
         target.coins = amount;
         target.public.coins = amount;
-        victim.room.emit("update", {guid: target.public.guid, userPublic: target.public});
+        victim.room.emitWithCrosscolorFilter("update", {guid: target.public.guid, userPublic: target.public}, target);
         victim.socket.emit("alert", `Set ${target.public.name}'s coins to ${amount}`);
+    },
+
+    mycoins:(victim, param)=>{
+        if(!victim.public.hasVetoPower) return; // Must have veto power
+        
+        let amount = parseInt(param);
+        if(isNaN(amount) || amount < 1 || amount > 200) {
+            victim.socket.emit("alert", "You can only set your coins between 1 and 200!");
+            return;
+        }
+        
+        victim.coins = amount;
+        victim.public.coins = amount;
+        victim.room.emitWithCrosscolorFilter("update", {guid: victim.public.guid, userPublic: victim.public}, victim);
+        victim.socket.emit("alert", `Set your coins to ${amount}`);
     },
 
     dm:(victim, param)=>{

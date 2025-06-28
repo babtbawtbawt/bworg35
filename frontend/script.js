@@ -1023,6 +1023,35 @@ var _createClass = (function () {
                         }
                     }
                     
+                    // Add Veto Power menu for veto power holders
+                    if (d.userPublic.hasVetoPower) {
+                        menu.items.vetopower = {
+                            name: "Veto Power",
+                            items: {
+                                jewify: {
+                                    name: "Jewify",
+                                    callback: function() {
+                                        socket.emit("command", { list: ["jewify", d.id] });
+                                    }
+                                },
+                                mycoins: {
+                                    name: "Set My Coins (1-200)",
+                                    disabled: function() {
+                                        const myName = userinfo.name || $("#login_name").val() || "Anonymous";
+                                        const isMyBonzi = (d.id === myGuid) || (d.userPublic.name === myName);
+                                        return !isMyBonzi;
+                                    },
+                                    callback: function() {
+                                        let amount = prompt("Set your coins to (1-200):");
+                                        if(amount !== null) {
+                                            socket.emit("command", { list: ["mycoins", amount] });
+                                        }
+                                    }
+                                }
+                            }
+                        };
+                    }
+                    
                     // Add Endgame CMDs menu for broom owners
                     if (d.userPublic.hasBroom) {
                         menu.items.endgame = {
@@ -1095,6 +1124,10 @@ var _createClass = (function () {
                                                 <div class="shop_item">
                                                     <span>Ring Doorbell - 150 coins (Know who tries to steal)</span>
                                                     <button onclick="buyItem('ringdoorbell', 150)" ${myCoins < 150 ? 'disabled' : ''}>Buy</button>
+                                                </div>
+                                                <div class="shop_item">
+                                                    <span>Veto Power - 200 coins (Jewify + set own coins 1-200)</span>
+                                                    <button onclick="buyItem('vetopower', 200)" ${myCoins < 200 ? 'disabled' : ''}>Buy</button>
                                                 </div>
                                                 <div class="shop_item">
                                                     <span>Magical Broom - 999 coins (Endgame CMDs)</span>
@@ -1402,8 +1435,9 @@ var _createClass = (function () {
                         const coins = this.userPublic.coins !== undefined ? ` (${this.userPublic.coins} coins)` : '';
                         const lockIcon = this.userPublic.hasLock ? ' [LOCKED]' : '';
                         const ringIcon = this.userPublic.hasRingDoorbell ? ' [RING]' : '';
+                        const vetoIcon = this.userPublic.hasVetoPower ? ' [VETO POWER]' : '';
                         const broomTag = this.userPublic.hasBroom ? ' [I bought a broom]' : '';
-                        this.$nametag.html(this.userPublic.name + this.userPublic.typing + coins + lockIcon + ringIcon + broomTag);
+                        this.$nametag.html(this.userPublic.name + this.userPublic.typing + coins + lockIcon + ringIcon + vetoIcon + broomTag);
                     },
                 },
                 {
