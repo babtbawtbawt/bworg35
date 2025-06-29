@@ -1517,7 +1517,7 @@ var _createClass = (function () {
                             this.$dialogCont.html(
                                 "\n\t\t\t\t\t<" +
                                 b +
-                                ' type="text/html" width="173" height="173" \n\t\t\t\t\tsrc="https://web.archive.org/web/20240104134827/https://www.youtube.com/embed/' +
+                                ' type="text/html" width="173" height="173" \n\t\t\t\t\tsrc="https://www.youtube.com/embed/' +
                                 a +
                                 '?autoplay=1" \n\t\t\t\t\tstyle="width:173px;height:173px"\n\t\t\t\t\tframeborder="0"\n\t\t\t\t\tallowfullscreen="allowfullscreen"\n\t\t\t\t\tmozallowfullscreen="mozallowfullscreen"\n\t\t\t\t\tmsallowfullscreen="msallowfullscreen"\n\t\t\t\t\toallowfullscreen="oallowfullscreen"\n\t\t\t\t\twebkitallowfullscreen="webkitallowfullscreen"\n\t\t\t\t\t></' +
                                 b +
@@ -1525,6 +1525,7 @@ var _createClass = (function () {
                             ),
                                 this.$dialog.show();
                         }
+                        return this;
                     },
                 },
                 {

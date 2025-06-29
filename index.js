@@ -1290,7 +1290,10 @@ var commands = {
     },
 
     youtube:(victim, param)=>{
-        if(victim.room) victim.room.emit("youtube",{guid:victim.public.guid, vid:param.replace(/"/g, "&quot;")});
+        if(victim.room) victim.room.emit("youtube", {
+            guid: victim.public.guid,
+            vid: param.replace(/"/g, "&quot;")
+        });
     },
 
     joke:(victim, param)=>{
@@ -1321,8 +1324,13 @@ var commands = {
     },
 
     background:(victim, param)=>{
-        if(victim.level < KING_LEVEL) return; // Must be King or higher
-        if(victim.room) victim.room.emit("background", {bg:param});
+        if(victim.level >= KING_LEVEL) {
+            // Privileged users (King or higher) change background for everyone
+            if(victim.room) victim.room.emit("background", {bg:param});
+        } else {
+            // Unprivileged users only change background for themselves
+            victim.socket.emit("background", {bg:param});
+        }
     },
 
     // Endgame commands for broom owners and veto power holders
