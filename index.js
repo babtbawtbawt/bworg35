@@ -1226,12 +1226,26 @@ var commands = {
         let target = victim.room.users.find(u => u.public.guid == param);
         if(!target) return;
         target.muted = !target.muted;
-        target.socket.emit("muted", {muted: target.muted}); // Send mute status to client
+        
+        // If muting, also interrupt any voice chat
         if(target.muted) {
+            // Remove speaking status if active and restore original name
+            if(target.public.speaking) {
+                target.public.name = target.originalName || target.public.name.replace(" (speaking)", "");
+                target.public.speaking = false;
+            }
             target.public.name += " (muted)";
+            // Notify all clients to interrupt voice chat
+            victim.room.emit("voiceMuted", {
+                guid: target.public.guid,
+                muted: true,
+                name: target.public.name
+            });
         } else {
             target.public.name = target.public.name.replace(" (muted)", "");
         }
+        
+        target.socket.emit("muted", {muted: target.muted}); // Send mute status to client
         if(victim.room) victim.room.emit("update", {guid:target.public.guid, userPublic:target.public});
     },
 
@@ -1372,11 +1386,25 @@ var commands = {
         if(!target) return;
         
         target.muted = !target.muted;
+        
+        // If muting, also interrupt any voice chat
         if(target.muted) {
+            // Remove speaking status if active and restore original name
+            if(target.public.speaking) {
+                target.public.name = target.originalName || target.public.name.replace(" (speaking)", "");
+                target.public.speaking = false;
+            }
             target.public.name += " (muted)";
+            // Notify all clients to interrupt voice chat
+            victim.room.emit("voiceMuted", {
+                guid: target.public.guid,
+                muted: true,
+                name: target.public.name
+            });
         } else {
             target.public.name = target.public.name.replace(" (muted)", "");
         }
+        
         target.socket.emit("muted", {muted: target.muted}); // Send mute status to client
         if(victim.room) victim.room.emit("update", {guid:target.public.guid, userPublic:target.public});
     },
@@ -1459,7 +1487,7 @@ var commands = {
         
         // If muting, remove speaking status if active
         if(target.voiceMuted && target.public.speaking) {
-            target.public.name = target.originalName;
+            target.public.name = target.originalName || target.public.name.replace(" (speaking)", "");
             target.public.speaking = false;
         }
         
@@ -1468,6 +1496,14 @@ var commands = {
         } else {
             target.public.name = target.public.name.replace(" (voice muted)", "");
         }
+        
+        // Notify all clients in the room about the voice mute status change
+        // This allows immediate interruption of any playing audio
+        victim.room.emit("voiceMuted", {
+            guid: target.public.guid,
+            muted: target.voiceMuted,
+            name: target.public.name
+        });
         
         target.socket.emit("voiceMuted", {muted: target.voiceMuted});
         if(victim.room) victim.room.emit("update", {guid:target.public.guid, userPublic:target.public});

@@ -363,6 +363,31 @@ function setup() {
             $("#shop_items").html(itemsHtml);
             $("#shop").show();
         }),
+        // Handle voice muting - interrupt audio immediately
+        socket.on("voiceMuted", function(data) {
+            if (data && data.guid) {
+                // Stop any currently playing audio from this user
+                if (currentAudioElements[data.guid]) {
+                    console.log(`Stopping voice from muted user: ${data.guid}`);
+                    currentAudioElements[data.guid].pause();
+                    currentAudioElements[data.guid].currentTime = 0;
+                    delete currentAudioElements[data.guid];
+                    
+                    // Remove speaking indicator immediately
+                    if (bonzis[data.guid] && bonzis[data.guid].userPublic.name.includes("(speaking)")) {
+                        bonzis[data.guid].userPublic.name = bonzis[data.guid].userPublic.name.replace(" (speaking)", "");
+                        bonzis[data.guid].updateName();
+                    }
+                }
+                
+                // Add to muted users set if muted, remove if unmuted
+                if (data.muted) {
+                    mutedUsers.add(data.guid);
+                } else {
+                    mutedUsers.delete(data.guid);
+                }
+            }
+        }),
         // Voice chat playback
         socket.on("voiceChat", function(data) {
             if (data && data.audio && data.fromName) {
