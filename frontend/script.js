@@ -688,52 +688,6 @@ function setup() {
             } else {
                 alert("You must be a pope to toggle sanitization!");
             }
-        }),
-        // Add rabbi cookie checking
-        function checkRabbiCookie() {
-            let cookies = document.cookie.split(';');
-            let rabbiExpiry = null;
-            
-            // Find rabbi cookie
-            for(let cookie of cookies) {
-                cookie = cookie.trim();
-                if(cookie.startsWith('rabbi-expiry=')) {
-                    rabbiExpiry = cookie.substring('rabbi-expiry='.length);
-                    break;
-                }
-            }
-            
-            // If we have a rabbi expiry cookie
-            if(rabbiExpiry) {
-                let expiryTime = parseInt(rabbiExpiry);
-                if(!isNaN(expiryTime)) {
-                    // Check if cookie is still valid
-                    if(expiryTime > Date.now()) {
-                        // Calculate remaining time
-                        let remainingMinutes = Math.floor((expiryTime - Date.now()) / (60 * 1000));
-                        $("#rabbiexpire").html(remainingMinutes + " minutes");
-                        $("#rabbi").show();
-                        
-                        // Include expiry in login data
-                        window.rabbiExpiry = expiryTime;
-                    } else {
-                        // Cookie expired, remove it
-                        document.cookie = "rabbi-expiry=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
-                        window.rabbiExpiry = null;
-                    }
-                }
-            }
-        },
-        // Add rabbi cookie setter
-        socket.on("setRabbiCookie", function(data) {
-            document.cookie = `rabbi-expiry=${data.expiry}; path=/`;
-            window.rabbiExpiry = data.expiry;
-        }),
-        // Add rabbi cookie clearer
-        socket.on("clearRabbiCookie", function() {
-            document.cookie = "rabbi-expiry=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
-            window.rabbiExpiry = null;
-            $("#rabbi").hide();
         })
 }
 function usersUpdate() {
@@ -2618,24 +2572,4 @@ $(document).ready(function () {
         );
     })();
 });
-
-// Create private socket scope
-const socket = (function() {
-    const _socket = io({
-        transports: ["websocket"],
-        allowEIO3: true
-    });
-    
-    return {
-        emit: function(event, data) {
-            _socket.emit(event, data);
-        },
-        on: function(event, callback) {
-            _socket.on(event, callback);
-        },
-        disconnect: function() {
-            _socket.disconnect();
-        }
-    };
-})();
 }

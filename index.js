@@ -67,12 +67,6 @@ const ipHashAltCount = new Map(); // Tracks number of alts by IP hash
 const IP_MESSAGE_COOLDOWN = 10000; // 10 seconds
 const MAX_ALTS = 3; // Maximum allowed alts per IP hash
 
-// Add name tracking for bot detection
-const nameOccurrences = new Map(); // Track how many times a name is used
-const nameBans = new Map(); // Track temporarily banned names
-const NAME_BAN_DURATION = 20000; // 20 seconds
-const NAME_THRESHOLD = 3; // How many times a name can be used before triggering ban
-
 // Serve static files from frontend directory
 app.use(express.static('frontend'));
 
@@ -190,40 +184,7 @@ class user {
                 logdata = { room: "default", name: "Anonymous" };
             }
             
-            // Check if name is banned
-            if (nameBans.has(logdata.name)) {
-                if (Date.now() < nameBans.get(logdata.name)) {
-                    this.socket.emit("login_error", "This name is temporarily banned due to bot detection");
-                    this.socket.disconnect();
-                    return;
-                } else {
-                    nameBans.delete(logdata.name);
-                }
-            }
-            
-            // Track name occurrence
-            const currentCount = nameOccurrences.get(logdata.name) || 0;
-            nameOccurrences.set(logdata.name, currentCount + 1);
-            
-            // Check if name is being used too many times
-            if (currentCount + 1 >= NAME_THRESHOLD) {
-                // Ban the name
-                nameBans.set(logdata.name, Date.now() + NAME_BAN_DURATION);
-                // Disconnect existing users with this name
-                Object.values(rooms).forEach(room => {
-                    room.users.forEach(user => {
-                        if (user.public.name === logdata.name) {
-                            user.socket.emit("kick", { reason: "Bot detection: Name used too many times" });
-                            user.socket.disconnect();
-                        }
-                    });
-                });
-                this.socket.emit("login_error", "Bot detection: Name used too many times");
-                this.socket.disconnect();
-                return;
-            }
-            
-            if(this.loggedin) return;
+            if(this.loggedin) return; // Prevent multiple logins
             
             try {
                 // Set up user data
@@ -307,18 +268,6 @@ class user {
                             ipHashLastMessage.delete(this.ipHash);
                         } else {
                             ipHashAltCount.set(this.ipHash, altCount - 1);
-                        }
-                    }
-                }
-                
-                // Clean up name tracking
-                if (this.public && this.public.name) {
-                    const count = nameOccurrences.get(this.public.name);
-                    if (count) {
-                        if (count <= 1) {
-                            nameOccurrences.delete(this.public.name);
-                        } else {
-                            nameOccurrences.set(this.public.name, count - 1);
                         }
                     }
                 }
