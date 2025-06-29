@@ -2150,9 +2150,7 @@ function stopVoiceRecording() {
         voiceChat.isRecording = false;
         console.log("Voice recording stopped");
     }
-});
-
-// ... rest of existing code ...
+}
 
 // Modify Bonzi class to use new sprite system
 Bonzi.prototype.updateSprite = async function(isGone = false) {
