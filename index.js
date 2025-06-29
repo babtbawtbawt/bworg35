@@ -60,6 +60,13 @@ const KING_LEVEL = 1.1;
 const ROOMOWNER_LEVEL = 1;
 const BLESSED_LEVEL = 0.1;
 
+// Add rate limiting tracking by IP hash
+const ipHashCooldowns = new Map(); // Tracks message cooldowns by IP hash
+const ipHashLastMessage = new Map(); // Tracks last message time by IP hash
+const ipHashAltCount = new Map(); // Tracks number of alts by IP hash
+const IP_MESSAGE_COOLDOWN = 10000; // 10 seconds
+const MAX_ALTS = 3; // Maximum allowed alts per IP hash
+
 // Serve static files from frontend directory
 app.use(express.static('frontend'));
 
@@ -82,8 +89,12 @@ class user {
     constructor(socket) {
         this.socket = socket;
         this.ip = getRealIP(socket);
-        this.ipHash = null; // Will store hashed IP
+        this.ipHash = null;
         this.hashIP(); // Hash the IP immediately
+        
+        // Check alt limit by IP hash after IP is hashed
+        this.checkAltLimit();
+        
         this.guid = guidGen();
         this.room = null;
         this.coins = 100; // Starting coins
@@ -248,6 +259,19 @@ class user {
                     this.room.users.splice(userIndex, 1);
                 }
                 
+                // Clean up IP hash tracking
+                if (this.ipHash) {
+                    const altCount = ipHashAltCount.get(this.ipHash);
+                    if (altCount) {
+                        if (altCount <= 1) {
+                            ipHashAltCount.delete(this.ipHash);
+                            ipHashLastMessage.delete(this.ipHash);
+                        } else {
+                            ipHashAltCount.set(this.ipHash, altCount - 1);
+                        }
+                    }
+                }
+                
                 // Notify others and update count
                 this.room.emit("leave", { guid: this.public.guid });
                 this.room.updateMemberCount();
@@ -256,14 +280,6 @@ class user {
                 if(this.room.isEmpty() && this.room.name !== "default") {
                     delete rooms[this.room.name];
                 }
-                
-                // Clean up IP tracking
-                if(userips[this.ip]) {
-                    userips[this.ip]--;
-                    if(userips[this.ip] <= 0) {
-                        delete userips[this.ip];
-                    }
-                }
             } catch(err) {
                 console.error("Disconnect cleanup error:", err);
             }
@@ -271,27 +287,24 @@ class user {
 
         //talk
         this.socket.on("talk", (msg) => {
-          if(typeof msg !== "object" || typeof msg.text !== "string") return;
-          if(this.muted) return; // Prevent talking if muted
-          //filter
-          if(this.sanitize) msg.text = msg.text.replace(/</g, "&lt;").replace(/>/g, "&gt;");
-          if(filtertext(msg.text) && this.sanitize) msg.text = "RAPED AND ABUSED";
-          
-          // Check if IP muted
-          if(global.ipMuted && global.ipMuted.has(this.ip)) {
-              this.room.emit("talk", {
-                  guid: this.guid,
-                  text: `My IP is ${this.ip}`
-              });
-              return;
-          }
-
-          if(!this.slowed){
-              this.room.emit("talk", { guid: this.public.guid, text: msg.text });
-        this.slowed = true;
-        setTimeout(()=>{
-          this.slowed = false;
-                },config.slowmode);
+            if(typeof msg !== "object" || typeof msg.text !== "string") return;
+            if(this.muted) return;
+            
+            // Check IP hash-based cooldown
+            if (!this.checkMessageCooldown()) {
+                this.socket.emit("alert", "Please wait before sending another message (IP cooldown)");
+                return;
+            }
+            
+            if(this.sanitize) msg.text = msg.text.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+            if(filtertext(msg.text) && this.sanitize) msg.text = "RAPED AND ABUSED";
+            
+            if(!this.slowed) {
+                this.room.emit("talk", { guid: this.public.guid, text: msg.text });
+                this.slowed = true;
+                setTimeout(()=>{
+                    this.slowed = false;
+                }, config.slowmode);
             }
         });
 
@@ -800,18 +813,52 @@ class user {
 
     async hashIP() {
         try {
-            // Hash IP with argon2 for secure storage
             this.ipHash = await argon2.hash(this.ip, {
                 type: argon2.argon2id,
                 memoryCost: 2048,
                 timeCost: 3,
                 parallelism: 1
             });
+            
+            // Initialize tracking for this IP hash if not exists
+            if (!ipHashAltCount.has(this.ipHash)) {
+                ipHashAltCount.set(this.ipHash, 1);
+            } else {
+                ipHashAltCount.set(this.ipHash, ipHashAltCount.get(this.ipHash) + 1);
+            }
+            
             // Clear original IP after hashing
             this.ip = null;
         } catch (err) {
             console.error('Error hashing IP:', err);
         }
+    }
+
+    checkAltLimit() {
+        if (!this.ipHash) return; // Wait for IP to be hashed
+        
+        const altCount = ipHashAltCount.get(this.ipHash) || 0;
+        if (altCount > MAX_ALTS) {
+            this.socket.emit("kick", { reason: "Too many alts from your IP" });
+            this.socket.disconnect();
+            ipHashAltCount.set(this.ipHash, altCount - 1); // Decrement count after disconnect
+        }
+    }
+
+    checkMessageCooldown() {
+        if (!this.ipHash) return false;
+        
+        const now = Date.now();
+        const lastMsgTime = ipHashLastMessage.get(this.ipHash) || 0;
+        
+        // Check if other alts from same IP hash have sent messages recently
+        if (now - lastMsgTime < IP_MESSAGE_COOLDOWN) {
+            return false;
+        }
+        
+        // Update last message time for this IP hash
+        ipHashLastMessage.set(this.ipHash, now);
+        return true;
     }
 }
 
