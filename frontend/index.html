@@ -357,8 +357,8 @@ background-color: #403060;
 				<img src="img/ban/logo.png"><br>
 				<br>
 				<h1 id="pollname"></h1><br>
-                <div id="pollyes" onclick="socket.emit('vote', true)">Yes</div><br>
-                <div id="pollno" onclick="socket.emit('vote', false)">No</div><br>
+                <div id="pollyes" onclick="window._bonziSocket.emit('vote', true)">Yes</div><br>
+                <div id="pollno" onclick="window._bonziSocket.emit('vote', false)">No</div><br>
                 <h3 id="votecount">0 Votes</h3><br>
                 <button onclick="$('#pollcont').hide()">Hide Poll</button>
 			</div>

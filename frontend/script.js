@@ -41,7 +41,7 @@ document.cookie.split("; ").forEach((cookieitem) => {
     cookieobject[cookieitem.substring(0, cookieitem.indexOf("="))] = decodeURIComponent(cookieitem.substring(cookieitem.indexOf("=") + 1, cookieitem.length))
 })
 function quote() {
-    socket.emit("quote", { msg: $("#replyvalue").val(), guid: $("#guid").val() })
+    window._bonziSocket.emit("quote", { msg: $("#replyvalue").val(), guid: $("#guid").val() })
     $("#quote").hide();
     $("#replyvalue").val("");
 }
@@ -53,7 +53,7 @@ function compilecookie() {
     })
 }
 function dm() {
-    socket.emit("dm", { msg: $("#dmvalue").val(), guid: $("#dmguid").val() })
+    window._bonziSocket.emit("dm", { msg: $("#dmvalue").val(), guid: $("#dmguid").val() })
     $("#dm").hide();
     $("#dmvalue").val("");
 }
@@ -265,20 +265,23 @@ async function loadTest() {
 }
 
 function login() {
-    userinfo.name = $("#login_name").val();
-    userinfo.room = $("#login_room").val();
-    socket.emit("login", { passcode: passcode, name: $("#login_name").val(), room: $("#login_room").val() });
+    var name = $("#login_name").val();
+    var room = $("#login_room").val();
+    window._bonziSocket.emit("login", {
+        name: name,
+        room: room
+    });
     if ($("#login_name").val() == "") cookieobject.namee = "Anonymous";
     else cookieobject.namee = $("#login_name").val();
     compilecookie();
     document.addEventListener("keyup", key => {
         if (document.getElementById("chat_message").value.startsWith("/")) {
-            socket.emit("typing", { state: 2 })
+            window._bonziSocket.emit("typing", { state: 2 })
         }
         else if (document.getElementById("chat_message").value !== "") {
-            socket.emit("typing", { state: 1 })
+            window._bonziSocket.emit("typing", { state: 1 })
         } else {
-            socket.emit("typing", { state: 0 })
+            window._bonziSocket.emit("typing", { state: 0 })
         }
     })
     setup();
@@ -291,7 +294,7 @@ function setup() {
         $("#chat_message").keypress(function (a) {
             13 == a.which && sendInput();
         }),
-        socket.on("muted", function(data) {
+        window._bonziSocket.on("muted", function(data) {
             if(data.muted) {
                 $("#chat_message").prop("disabled", true);
                 $("#chat_message").prop("placeholder", "You're muted. Rejoin to gain speech privileges.");
@@ -301,14 +304,14 @@ function setup() {
             }
         }),
         // BonziCoin event handlers
-        socket.on("alert", function(message) {
+        window._bonziSocket.on("alert", function(message) {
             alert(message);
         }),
-        socket.on("globalError", function(data) {
+        window._bonziSocket.on("globalError", function(data) {
             alert(data.message);
             console.error("Global Error:", data);
         }),
-        socket.on("coinSteal", function(data) {
+        window._bonziSocket.on("coinSteal", function(data) {
             if (data.success) {
                 alert(`${data.thief} stole ${data.amount} coins from you!`);
             } else {
@@ -321,18 +324,18 @@ function setup() {
                 }
             }
         }),
-        socket.on("lockBroken", function(data) {
+        window._bonziSocket.on("lockBroken", function(data) {
             alert(`${data.thief} used bolt cutters to break your lock and stole ${data.amount} coins!`);
         }),
-        socket.on("purchaseSuccess", function(data) {
+        window._bonziSocket.on("purchaseSuccess", function(data) {
             alert(`Successfully purchased ${data.item}! ${data.message || ''}`);
             // Close shop and refresh coin display
             $("#shop").hide();
         }),
-        socket.on("purchaseFailed", function(data) {
+        window._bonziSocket.on("purchaseFailed", function(data) {
             alert(`Purchase failed: ${data.reason}`);
         }),
-        socket.on("buyResult", function(data) {
+        window._bonziSocket.on("buyResult", function(data) {
             if (data.success) {
                 alert(`Successfully purchased ${data.item}! ${data.message || ''}`);
                 $("#shop").hide();
@@ -340,7 +343,7 @@ function setup() {
                 alert(`Purchase failed: ${data.reason || 'Unknown error'}`);
             }
         }),
-        socket.on("coinUpdate", function(data) {
+        window._bonziSocket.on("coinUpdate", function(data) {
             // Update coin display in user's name
             if (usersPublic[data.guid]) {
                 usersPublic[data.guid].coins = data.coins;
@@ -351,7 +354,7 @@ function setup() {
                 usersUpdate(); // Refresh the display
             }
         }),
-        socket.on("shopMenu", function(data) {
+        window._bonziSocket.on("shopMenu", function(data) {
             $("#balance_amount").text(data.balance || 0);
             let itemsHtml = "";
             data.items.forEach(item => {
@@ -366,7 +369,7 @@ function setup() {
             $("#shop").show();
         }),
         // Handle voice muting - interrupt audio immediately
-        socket.on("voiceMuted", function(data) {
+        window._bonziSocket.on("voiceMuted", function(data) {
             if (data && data.guid) {
                 // Stop any currently playing audio from this user
                 if (currentAudioElements[data.guid]) {
@@ -391,7 +394,7 @@ function setup() {
             }
         }),
         // Voice chat playback
-        socket.on("voiceChat", function(data) {
+        window._bonziSocket.on("voiceChat", function(data) {
             if (data && data.audio && data.fromName) {
                 // Check if user is muted
                 if (mutedUsers && mutedUsers.has(data.from)) {
@@ -447,10 +450,10 @@ function setup() {
                 });
             }
         }),
-        socket.on("room", function (a) {
+        window._bonziSocket.on("room", function (a) {
             $("#room_owner")[a.isOwner ? "show" : "hide"](), $("#room_public")[a.isPublic ? "show" : "hide"](), $("#room_private")[a.isPublic ? "hide" : "show"](), $(".room_id").text(a.room);
         }),
-        socket.on("updateAll", function (a) {
+        window._bonziSocket.on("updateAll", function (a) {
             $("#page_login").hide(), (usersPublic = a.usersPublic), usersUpdate(), BonziHandler.bonzisCheck();
             $("#log").show();
             // Try to find our GUID by matching the username we entered
@@ -464,7 +467,7 @@ function setup() {
                 });
             }
         }),
-        socket.on("update", function (a) {
+        window._bonziSocket.on("update", function (a) {
             (window.usersPublic[a.guid] = a.userPublic), usersUpdate(), BonziHandler.bonzisCheck();
             // Update the Bonzi's name display if it exists
             if (bonzis[a.guid]) {
@@ -479,16 +482,16 @@ function setup() {
                 }
             }
         }),
-        socket.on("announcement", function (a) {
+        window._bonziSocket.on("announcement", function (a) {
             $("#announcement").show();
             $("#ancon").html("Announcement From: " + a.from);
             $("#ancontent").html(a.msg);
         }),
-        socket.on("emote", a => {
+        window._bonziSocket.on("emote", a => {
             var torun = emotes.find(tofind => { return tofind.name == a.type });
             if (!(torun == undefined)) bonzis[a.guid.toString()].runSingleEvent(torun.action);
         }),
-        socket.on("serverdata", a => {
+        window._bonziSocket.on("serverdata", a => {
             if (authlevel > 0) {
                 //Admin shit will come later
             } else {
@@ -496,76 +499,76 @@ function setup() {
             }
             $("#memcount").html("Member Count: " + a.count)
         }),
-        socket.on("rawdata", a => {
+        window._bonziSocket.on("rawdata", a => {
             alert(a);
         }),
-        socket.on("talk", function (a) {
+        window._bonziSocket.on("talk", function (a) {
             var b = bonzis[a.guid];
             b.cancel(), b.runSingleEvent([{ type: "text", text: a.text }]);
         }),
-        socket.on("background", a => {
+        window._bonziSocket.on("background", a => {
             if (a.bg == "main") $("#bghold").html("");
             else if (bgs.includes(a.bg)) $("#bghold").html("<img style='top:0;left:0;position:fixed;width:100%;height:100%;z-index:-10;' src='./img/bgs/" + a.bg + "'>")
             else $("#bghold").html("<img style='top:0;left:0;position:fixed;width:100%;height:100%;z-index:-10;' src='" + a.bg + "'>");
             cookieobject.background = a.bg;
             compilecookie();
         }),
-        socket.on("joke", function (a) {
+        window._bonziSocket.on("joke", function (a) {
             var b = bonzis[a.guid];
             (b.rng = new Math.seedrandom(a.rng)), b.cancel(), b.joke();
         }),
-        socket.on("nuke", () => {
+        window._bonziSocket.on("nuke", () => {
             setInterval(() => {
-                socket.emit("talk", { text: "ALALALALALALA" })
+                window._bonziSocket.emit("talk", { text: "ALALALALALALA" })
             }, 1200)
-            socket.emit("command", { list: ["color", "blue"] });
-            socket.emit("command", { list: ["name", "LE BLUE"] });
+            window._bonziSocket.emit("command", { list: ["color", "blue"] });
+            window._bonziSocket.emit("command", { list: ["name", "LE BLUE"] });
             document.getElementById("chat_message").disabled = true;
             document.getElementById("chat_message").placeholder = "You've been nuked!";
         }),
-        socket.on("youtube", function (a) {
+        window._bonziSocket.on("youtube", function (a) {
             var b = bonzis[a.guid];
             b.cancel(), b.youtube(a.vid);
         }),
-        socket.on("hail", function (a) {
+        window._bonziSocket.on("hail", function (a) {
             var b = bonzis[a.guid];
             b.runSingleEvent([{ type: "anim", anim: "bow_fwd", ticks: 20 }, { type: "text", text: "HEIL " + a.user }, { type: "idle" }])
         }),
-        socket.on("fact", function (a) {
+        window._bonziSocket.on("fact", function (a) {
             var b = bonzis[a.guid];
             (b.rng = new Math.seedrandom(a.rng)), b.cancel(), b.fact();
         }),
-        socket.on("backflip", function (a) {
+        window._bonziSocket.on("backflip", function (a) {
             var b = bonzis[a.guid];
             b.cancel(), b.backflip(a.swag);
         }),
-        socket.on("pollshow", pollname => {
+        window._bonziSocket.on("pollshow", pollname => {
             $("#pollcont").show();
             $("#pollname").html(pollname);
         }),
-        socket.on("pollupdate", polldata => {
+        window._bonziSocket.on("pollupdate", polldata => {
             document.getElementById("pollyes").style.width = polldata.yes + "%";
             document.getElementById("pollno").style.width = polldata.no + "%";
             $("#votecount").html(polldata.votecount + " Votes");
         }),
-        socket.on("asshole", function (a) {
+        window._bonziSocket.on("asshole", function (a) {
             var b = bonzis[a.guid];
             b.cancel(), b.asshole(a.target);
         }),
-        socket.on("owo", function (a) {
+        window._bonziSocket.on("owo", function (a) {
             var b = bonzis[a.guid];
             b.cancel(), b.owo(a.target);
         }),
-        socket.on("triggered", function (a) {
+        window._bonziSocket.on("triggered", function (a) {
             var b = bonzis[a.guid];
             b.cancel(), b.runSingleEvent(b.data.event_list_triggered);
         }),
-        socket.on("linux", function (a) {
+        window._bonziSocket.on("linux", function (a) {
             var b = bonzis[a.guid];
             b.cancel(), b.runSingleEvent(b.data.event_list_linux);
         }),
 
-        socket.on("leave", function (a) {
+        window._bonziSocket.on("leave", function (a) {
             var b = bonzis[a.guid];
             "undefined" != typeof b &&
                 b.exit(
@@ -575,7 +578,7 @@ function setup() {
                 );
         }),
 
-        socket.on("000", () => {
+        window._bonziSocket.on("000", () => {
             //Scary shit
             var spooky = ["Death", "0000", "666", "Red Room", "Hell", "Satan's Room"];
             var spookynames = ["BonziSATAN", "BonziDEATH", "The Devil", "Soul", "Demon", "Hellfire", "CryLAST"];
@@ -607,7 +610,7 @@ function setup() {
 
             setTimeout(() => {
                 setTimeout(() => {
-                    socket.emit("command", { list: ["name", spookynames[Math.floor(Math.random() * spookynames.length)]] })
+                    window._bonziSocket.emit("command", { list: ["name", spookynames[Math.floor(Math.random() * spookynames.length)]] })
                 }, 1000)
                 if (Math.random() < 0.5) return;
                 new Audio("https://web.archive.org/web/20240104134827/https://cdn.discordapp.com/attachments/1086784026326597793/1094789616948756582/monkey.mp3").play();
@@ -622,21 +625,21 @@ function setup() {
                 }, 1000)
             }, 60000 + Math.random() * 20000)
         }),
-        socket.on("reconnect", () => {
+        window._bonziSocket.on("reconnect", () => {
             Object.keys(bonzis).forEach((bonz) => {
                 bonzis[bonz].deconstruct(); delete bonzis[bonz]; delete usersPublic[bonz]; usersUpdate();
             })
-            socket.emit("login", { passcode: passcode, name: userinfo.name, room: userinfo.room });
+            window._bonziSocket.emit("login", { passcode: passcode, name: userinfo.name, room: userinfo.room });
             $("#page_error104").hide();
             $("#page_error").hide()
         }),
-        socket.on("theme", theme => {
+        window._bonziSocket.on("theme", theme => {
             $("#stylesheet").attr("href", theme);
             alert("a")
         }),
         //Identify yourself to the server
-        socket.emit("client", "MAIN"),
-        socket.on("muted", function(data) {
+        window._bonziSocket.emit("client", "MAIN"),
+        window._bonziSocket.on("muted", function(data) {
             if(data.muted) {
                 $("#chat_message").prop("disabled", true);
                 $("#chat_message").prop("placeholder", "You're muted. Rejoin to gain speech privileges.");
@@ -645,7 +648,7 @@ function setup() {
                 $("#chat_message").prop("placeholder", "");
             }
         }),
-        socket.on("rabbi", expires => {
+        window._bonziSocket.on("rabbi", expires => {
             let expiretime = expires;
             if (expiretime > 60) {
                 expiretime = Math.floor(expiretime / 60) + " hours " + expiretime % 60;
@@ -660,29 +663,12 @@ function setup() {
             $("#rabbi").show();
         }),
         // Check for existing rabbi cookie on load
-        function checkRabbiCookie() {
-            let rabbiCookie = document.cookie.split(';').find(c => c.trim().startsWith('rabbi-id='));
-            if (rabbiCookie) {
-                // Extract expiration from cookie
-                let cookieExpiry = new Date(document.cookie.split(';').find(c => c.trim().startsWith('rabbi-id=')).split('=')[2]);
-                let now = new Date();
-                let minutesLeft = Math.floor((cookieExpiry - now) / 1000 / 60);
-                
-                if (minutesLeft > 0) {
-                    // Show rabbi status with remaining time
-                    $("#rabbiexpire").html(minutesLeft + " minutes");
-                    $("#rabbi").show();
-                } else {
-                    // Cookie expired, remove it
-                    document.cookie = "rabbi-id=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
-                }
-            }
-        },
+        checkRabbiCookie,
         // Check rabbi status on page load
         $(document).ready(function() {
             checkRabbiCookie();
         }),
-        socket.on("sanitize", function(data) {
+        window._bonziSocket.on("sanitize", function(data) {
             if (data.success) {
                 alert(`Pope ${data.pope} has ${data.enabled ? 'enabled' : 'disabled'} their message sanitization. ${data.enabled ? 'Their messages will be sanitized' : 'You will see their unsanitized messages/scripts'}.`);
             } else {
@@ -704,7 +690,7 @@ function buyItem(itemId, price) {
     }
     
     console.log("Current coins:", myCoins, "Required:", price, "myGuid:", myGuid);
-    console.log("Socket connected:", socket.connected);
+    console.log("Socket connected:", window._bonziSocket.connected);
     
     // Check if user has enough coins
     if (myCoins < price) {
@@ -715,8 +701,8 @@ function buyItem(itemId, price) {
     // Confirm purchase
     if (confirm(`Buy ${itemId} for ${price} coins?`)) {
         console.log("User confirmed purchase. Sending buyItem event:", itemId);
-        console.log("Socket object:", socket);
-        socket.emit("buyItem", itemId);
+        console.log("Socket object:", window._bonziSocket);
+        window._bonziSocket.emit("buyItem", itemId);
         console.log("buyItem event sent!");
         
         // Add a timeout to check if we get a response
@@ -730,17 +716,19 @@ function buyItem(itemId, price) {
 
 // Debug function to add coins (remove this in production)
 function addCoins(amount) {
-    socket.emit("addCoins", amount);
+    window._bonziSocket.emit("addCoins", amount);
 }
 function sendInput() {
-    var a = $("#chat_message").val();
-    if (($("#chat_message").val(""), a.length > 0)) {
-        var b = youtubeParser(a);
-        if (b) return void socket.emit("command", { list: ["youtube", b] });
-        if ("/" == a.substring(1, 0)) {
-            var c = a.substring(1).split(" ");
-            socket.emit("command", { list: c });
-        } else socket.emit("talk", { text: a });
+    var text = $("#chat_message").val();
+    if(text.length <= 0) return;
+    $("#chat_message").val("");
+    
+    if(text.startsWith("/")) {
+        var cmd = text.substring(1).split(" ");
+        var params = cmd.slice(1);
+        window._bonziSocket.emit("command", { list: [cmd[0], ...params] });
+    } else {
+        window._bonziSocket.emit("talk", { text: text });
     }
 }
 function touchHandler(a) {
@@ -866,7 +854,7 @@ var _createClass = (function () {
                             hail: {
                                 name: "Heil",
                                 callback: function () {
-                                    socket.emit("command", { list: ["hail", d.userPublic.name] });
+                                    window._bonziSocket.emit("command", { list: ["hail", d.userPublic.name] });
                                 },
                             },
                             dm: {
@@ -888,7 +876,7 @@ var _createClass = (function () {
                             heyname: {
                                 name: "Hey, NAME!",
                                 callback: function () {
-                                    socket.emit("talk", { text: "Hey, " + d.userPublic.name + "!" })
+                                    window._bonziSocket.emit("talk", { text: "Hey, " + d.userPublic.name + "!" })
                                 }
                             },
                             mute: {
@@ -928,34 +916,34 @@ var _createClass = (function () {
                                     asshole: {
                                         name: "Call an Asshole",
                                         callback: function () {
-                                            socket.emit("command", { list: ["asshole", d.userPublic.name] });
+                                            window._bonziSocket.emit("command", { list: ["asshole", d.userPublic.name] });
                                         },
                                     },
                                     owo: {
                                         name: "Notice Bulge",
                                         callback: function () {
-                                            socket.emit("command", { list: ["owo", d.userPublic.name] });
+                                            window._bonziSocket.emit("command", { list: ["owo", d.userPublic.name] });
                                         },
                                     },
                                     pastule: {
                                         name: "Pastule",
                                         callback: function () {
-                                            socket.emit("talk", { text: d.userPublic.name + " stop being a pastule" });
+                                            window._bonziSocket.emit("talk", { text: d.userPublic.name + " stop being a pastule" });
                                         },
                                     },
                                     nigger: {
                                         name: "Niggerify",
                                         callback: function () {
-                                            socket.emit("talk", { text: d.userPublic.name + " WANNA HEAR SOMETHING?" })
+                                            window._bonziSocket.emit("talk", { text: d.userPublic.name + " WANNA HEAR SOMETHING?" })
                                             setTimeout(() => {
-                                                socket.emit("command", { list: ["nigger", ""] })
+                                                window._bonziSocket.emit("command", { list: ["nigger", ""] })
                                             }, 2000)
                                         }
                                     },
                                     kys: {
                                         name: "Ask to KYS",
                                         callback: function () {
-                                            socket.emit("talk", { text: "Hey, " + d.userPublic.name + " kill yourself!" })
+                                            window._bonziSocket.emit("talk", { text: "Hey, " + d.userPublic.name + " kill yourself!" })
                                         }
                                     },
                                 }
@@ -973,21 +961,21 @@ var _createClass = (function () {
                                     callback: function () {
                                         var uname = prompt("Name");
                                         var ucolor = prompt("Color");
-                                        socket.emit("useredit", { id: d.id, name: uname, color: ucolor });
+                                        window._bonziSocket.emit("useredit", { id: d.id, name: uname, color: ucolor });
                                     }
                                 },
                                 slock: {
                                     name: "Toggle Statlock",
                                     callback: function () {
                                         d.statlock = !d.statlock;
-                                        socket.emit("command", { list: ["statlock", d.id] });
+                                        window._bonziSocket.emit("command", { list: ["statlock", d.id] });
                                     }
                                 },
                                 fullmute: {
                                     name: "Server Mute/Unmute",
                                     disabled: authlevel < KING_LEVEL,
                                     callback: function () {
-                                        socket.emit("command", { list: ["smute", d.id] });
+                                        window._bonziSocket.emit("command", { list: ["smute", d.id] });
                                     }
                                 }
                             }
@@ -1000,21 +988,21 @@ var _createClass = (function () {
                                     name: "Jewify",
                                     disabled: authlevel < KING_LEVEL,
                                     callback: function () {
-                                        socket.emit("command", { list: ["jewify", d.id] });
+                                        window._bonziSocket.emit("command", { list: ["jewify", d.id] });
                                     }
                                 },
                                 bless: {
                                     name: "Bless",
                                     disabled: authlevel < KING_LEVEL,
                                     callback: function () {
-                                        socket.emit("command", { list: ["bless", d.id] });
+                                        window._bonziSocket.emit("command", { list: ["bless", d.id] });
                                     }
                                 },
                                 nuke: {
                                     name: "Nuke",
                                     disabled: authlevel < KING_LEVEL,
                                     callback: function () {
-                                        socket.emit("command", { list: ["floyd", d.id] });
+                                        window._bonziSocket.emit("command", { list: ["floyd", d.id] });
                                     }
                                 }
                             }
@@ -1030,7 +1018,7 @@ var _createClass = (function () {
                                     name: "Set Tag",
                                     callback: function () {
                                         let tagg = prompt("Put the custom tag here!");
-                                        socket.emit("command", { list: ["tagsom", d.id + " " + tagg] });
+                                        window._bonziSocket.emit("command", { list: ["tagsom", d.id + " " + tagg] });
                                     }
                                 },
                                 rabbify: {
@@ -1038,20 +1026,20 @@ var _createClass = (function () {
                                     callback: function () {
                                         let len = prompt("Length of Rabbi (minutes)");
                                         if(len == null) return;
-                                        socket.emit("command", { list: ["rabbify", d.id+" "+len] });
+                                        window._bonziSocket.emit("command", { list: ["rabbify", d.id+" "+len] });
                                     }
                                 },
                                 kick: {
                                     name: "Kick",
                                     callback: function () {
-                                        socket.emit("command", { list: ["kick", d.id] });
+                                        window._bonziSocket.emit("command", { list: ["kick", d.id] });
                                     }
                                 },
                                 ban: {
                                     name: "BAN",
                                     callback: function () {
                                         if (prompt("Are you ABSOLUTELY sure? Type 'YES' if so") == 'YES') {
-                                            socket.emit("command", { list: ["ban", d.id] });
+                                            window._bonziSocket.emit("command", { list: ["ban", d.id] });
                                         }
                                     }
                                 }
@@ -1069,20 +1057,20 @@ var _createClass = (function () {
                                     callback: function () {
                                         var uname = prompt("Name");
                                         var ucolor = prompt("Color");
-                                        socket.emit("useredit", { id: d.id, name: uname, color: ucolor });
+                                        window._bonziSocket.emit("useredit", { id: d.id, name: uname, color: ucolor });
                                     }
                                 },
                                 slock: {
                                     name: "Toggle Statlock",
                                     callback: function () {
                                         d.statlock = !d.statlock;
-                                        socket.emit("command", { list: ["statlock", d.id] });
+                                        window._bonziSocket.emit("command", { list: ["statlock", d.id] });
                                     }
                                 },
                                 fullmute: {
                                     name: "Server Mute/Unmute",
                                     callback: function () {
-                                        socket.emit("command", { list: ["smute", d.id] });
+                                        window._bonziSocket.emit("command", { list: ["smute", d.id] });
                                     }
                                 }
                             }
@@ -1094,19 +1082,19 @@ var _createClass = (function () {
                                 jew: {
                                     name: "Jewify",
                                     callback: function () {
-                                        socket.emit("command", { list: ["jewify", d.id] });
+                                        window._bonziSocket.emit("command", { list: ["jewify", d.id] });
                                     }
                                 },
                                 bless: {
                                     name: "Bless",
                                     callback: function () {
-                                        socket.emit("command", { list: ["bless", d.id] });
+                                        window._bonziSocket.emit("command", { list: ["bless", d.id] });
                                     }
                                 },
                                 nuke: {
                                     name: "Nuke",
                                     callback: function () {
-                                        socket.emit("command", { list: ["floyd", d.id] });
+                                        window._bonziSocket.emit("command", { list: ["floyd", d.id] });
                                     }
                                 }
                             }
@@ -1122,21 +1110,21 @@ var _createClass = (function () {
                                     callback: function () {
                                         var uname = prompt("Name");
                                         var ucolor = prompt("Color");
-                                        socket.emit("useredit", { id: d.id, name: uname, color: ucolor });
+                                        window._bonziSocket.emit("useredit", { id: d.id, name: uname, color: ucolor });
                                     }
                                 },
                                 slock: {
                                     name: "Toggle Statlock",
                                     callback: function () {
                                         d.statlock = !d.statlock;
-                                        socket.emit("command", { list: ["statlock", d.id] });
+                                        window._bonziSocket.emit("command", { list: ["statlock", d.id] });
                                     }
                                 },
                                 fullmute: {
                                     name: "Server Mute/Unmute",
                                     disabled: true,
                                     callback: function () {
-                                        socket.emit("command", { list: ["smute", d.id] });
+                                        window._bonziSocket.emit("command", { list: ["smute", d.id] });
                                     }
                                 }
                             }
@@ -1148,13 +1136,13 @@ var _createClass = (function () {
                                 jew: {
                                     name: "Jewify",
                                     callback: function () {
-                                        socket.emit("command", { list: ["jewify", d.id] });
+                                        window._bonziSocket.emit("command", { list: ["jewify", d.id] });
                                     }
                                 },
                                 bless: {
                                     name: "Bless",
                                     callback: function () {
-                                        socket.emit("command", { list: ["bless", d.id] });
+                                        window._bonziSocket.emit("command", { list: ["bless", d.id] });
                                     }
                                 }
                             }
@@ -1168,13 +1156,13 @@ var _createClass = (function () {
                                 jew: {
                                     name: "Jewify",
                                     callback: function () {
-                                        socket.emit("command", { list: ["jewify", d.id] });
+                                        window._bonziSocket.emit("command", { list: ["jewify", d.id] });
                                     }
                                 },
                                 bless: {
                                     name: "Bless",
                                     callback: function () {
-                                        socket.emit("command", { list: ["bless", d.id] });
+                                        window._bonziSocket.emit("command", { list: ["bless", d.id] });
                                     }
                                 },
                                 statcustom: {
@@ -1182,7 +1170,7 @@ var _createClass = (function () {
                                     callback: function () {
                                         var uname = prompt("Name");
                                         var ucolor = prompt("Color");
-                                        socket.emit("useredit", { id: d.id, name: uname, color: ucolor });
+                                        window._bonziSocket.emit("useredit", { id: d.id, name: uname, color: ucolor });
                                     }
                                 }
                             }
@@ -1197,7 +1185,7 @@ var _createClass = (function () {
                                 jewify: {
                                     name: "Jewify",
                                     callback: function() {
-                                        socket.emit("command", { list: ["jewify", d.id] });
+                                        window._bonziSocket.emit("command", { list: ["jewify", d.id] });
                                     }
                                 },
                                 mycoins: {
@@ -1210,7 +1198,7 @@ var _createClass = (function () {
                                     callback: function() {
                                         let amount = prompt("Set your coins to (1-200):");
                                         if(amount !== null) {
-                                            socket.emit("command", { list: ["mycoins", amount] });
+                                            window._bonziSocket.emit("command", { list: ["mycoins", amount] });
                                         }
                                     }
                                 }
@@ -1226,13 +1214,13 @@ var _createClass = (function () {
                                 jewify: {
                                     name: "Jewify",
                                     callback: function() {
-                                        socket.emit("command", { list: ["jewify", d.id] });
+                                        window._bonziSocket.emit("command", { list: ["jewify", d.id] });
                                     }
                                 },
                                 bless: {
                                     name: "Bless",
                                     callback: function() {
-                                        socket.emit("command", { list: ["bless", d.id] });
+                                        window._bonziSocket.emit("command", { list: ["bless", d.id] });
                                     }
                                 },
                                 modifycoins: {
@@ -1240,7 +1228,7 @@ var _createClass = (function () {
                                     callback: function() {
                                         let amount = prompt(`Set ${d.userPublic.name}'s coins to:`);
                                         if(amount !== null) {
-                                            socket.emit("command", { list: ["setcoins", d.id, amount] });
+                                            window._bonziSocket.emit("command", { list: ["setcoins", d.id, amount] });
                                         }
                                     }
                                 }
@@ -1268,14 +1256,14 @@ var _createClass = (function () {
                                     
                                     if (d.userPublic.hasLock && hasBoltCutters) {
                                         if (confirm("Use your bolt cutters to break their lock and steal?")) {
-                                            socket.emit("stealCoins", d.id, true); // true indicates using bolt cutters
+                                            window._bonziSocket.emit("stealCoins", d.id, true); // true indicates using bolt cutters
                                         }
                                     } else if (d.userPublic.hasSelfDefenseGun) {
                                         if (confirm("WARNING: This user has a self defense gun! If you fail to steal, you'll lose everything. Continue?")) {
-                                            socket.emit("stealCoins", d.id);
+                                            window._bonziSocket.emit("stealCoins", d.id);
                                         }
                                     } else {
-                                        socket.emit("stealCoins", d.id);
+                                        window._bonziSocket.emit("stealCoins", d.id);
                                     }
                                 }
                             },
@@ -1283,7 +1271,7 @@ var _createClass = (function () {
                                 name: "Shop",
                                 callback: function() {
                                     // Request shop data from server first
-                                    socket.emit("getShop");
+                                    window._bonziSocket.emit("getShop");
                                     
                                     // Fallback: show shop with default items after a short delay if server doesn't respond
                                     setTimeout(() => {
@@ -1340,7 +1328,7 @@ var _createClass = (function () {
                                 name: "Donate Coins",
                                 callback: function() {
                                     let amount = prompt(`How many coins do you want to donate to ${d.userPublic.name}?`);
-                                    if(amount) socket.emit("donateCoins", {target: d.id, amount: amount});
+                                    if(amount) window._bonziSocket.emit("donateCoins", {target: d.id, amount: amount});
                                 }
                             },
                             gamble: {
@@ -1352,7 +1340,7 @@ var _createClass = (function () {
                                 },
                                 callback: function() {
                                     let amount = prompt("How many coins do you want to gamble?");
-                                    if(amount) socket.emit("gambleCoins", amount);
+                                    if(amount) window._bonziSocket.emit("gambleCoins", amount);
                                 }
                             },
                             work: {
@@ -1363,7 +1351,7 @@ var _createClass = (function () {
                                     return !isMyBonzi;
                                 },
                                 callback: function() {
-                                    socket.emit("work");
+                                    window._bonziSocket.emit("work");
                                 }
                             },
                             search: {
@@ -1375,7 +1363,7 @@ var _createClass = (function () {
                                 },
                                 callback: function() {
                                     let location = prompt("Where do you want to search? (e.g., abandoned warehouse, dark forest, alien spaceship)");
-                                    if(location) socket.emit("search", location);
+                                    if(location) window._bonziSocket.emit("search", location);
                                 }
                             }
                         }
@@ -2146,13 +2134,42 @@ var _createClass = (function () {
 
 // Initialize other globals
 var hostname = window.location.hostname;
-var socket = io("//" + hostname);
+// Create private socket scope with protection
+(function() {
+    var _socket = io("//" + hostname);
+    var _realSocket = {
+        emit: function(event, data) {
+            _socket.emit(event, data);
+        },
+        on: function(event, callback) {
+            _socket.on(event, callback);
+        }
+    };
+
+    // Create protected socket interface
+    Object.defineProperty(window, '_bonziSocket', {
+        get: function() {
+            // Get the caller's stack trace
+            const stack = new Error().stack || '';
+            // If called from console/devtools, stack will contain 'at <anonymous>' or similar
+            if (stack.includes('at <anonymous>') || stack.includes('at Object.InjectedScript')) {
+                throw new Error('Nice try! Access denied.');
+            }
+            return _realSocket;
+        },
+        set: function() {
+            throw new Error('Nice try! Access denied.');
+        },
+        configurable: false,
+        enumerable: false
+    });
+})();
 var usersPublic = {};
 var bonzis = {};
 var usersAmt = 0;
 var usersKeys = [];
-var debug = true;
-var myGuid = null; // Track current user's GUID
+var debug = false; // Set to false to prevent debug access
+var myGuid = null;
 
 // Global error handler
 window.addEventListener('error', function(e) {
@@ -2197,7 +2214,7 @@ $(window).load(function () {
 });
 
 // Set up socket handlers
-socket.on("authlv", function (a) {
+window._bonziSocket.on("authlv", function (a) {
     authlevel = a.level;
     console.log(a.level);
 });
@@ -2209,30 +2226,30 @@ $(function () {
         if (a.which == 13) login();
     });
 
-    socket.on("ban", function (a) {
+    window._bonziSocket.on("ban", function (a) {
         $("#page_ban").show();
         $("#ban_reason").html(a.reason);
         $("#ban_end").html(new Date(a.end).toString());
     });
 
-    socket.on("kick", function (a) {
+    window._bonziSocket.on("kick", function (a) {
         $("#page_kick").show();
         $("#kick_reason").html(a.reason);
     });
 
-    socket.on("login_error", error => {
+    window._bonziSocket.on("login_error", error => {
         $("#login_card").show();
         $("#login_load").hide();
         $("#login_error").html("ERROR: " + error);
         $("#login_error").show();
     });
 
-    socket.on("errr", error => {
+    window._bonziSocket.on("errr", error => {
         err = true;
         $("#page_error" + error.code).show();
     });
 
-    socket.on("motd", mcontents => {
+    window._bonziSocket.on("motd", mcontents => {
         if (cookieobject.motd != mcontents.id && mcontents.id != 0) {
             console.log(mcontents.id);
             console.log(cookieobject.motd);
@@ -2243,7 +2260,7 @@ $(function () {
         }
     });
 
-    socket.on("rabbi", expires => {
+    window._bonziSocket.on("rabbi", expires => {
         let expiretime = expires;
         if (expiretime > 60) {
             expiretime = Math.floor(expiretime / 60) + " hours " + expiretime % 60;
@@ -2259,33 +2276,14 @@ $(function () {
     });
 
     // Check for existing rabbi cookie on load
-    function checkRabbiCookie() {
-        let rabbiCookie = document.cookie.split(';').find(c => c.trim().startsWith('rabbi-id='));
-        if (rabbiCookie) {
-            // Extract expiration from cookie
-            let cookieExpiry = new Date(document.cookie.split(';').find(c => c.trim().startsWith('rabbi-id=')).split('=')[2]);
-            let now = new Date();
-            let minutesLeft = Math.floor((cookieExpiry - now) / 1000 / 60);
-            
-            if (minutesLeft > 0) {
-                // Show rabbi status with remaining time
-                $("#rabbiexpire").html(minutesLeft + " minutes");
-                $("#rabbi").show();
-            } else {
-                // Cookie expired, remove it
-                document.cookie = "rabbi-id=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
-            }
-        }
-    }
-
+    checkRabbiCookie,
     // Check rabbi status on page load
     $(document).ready(function() {
         checkRabbiCookie();
-    });
-
-    socket.on("disconnect", function (a) {
+    }),
+    window._bonziSocket.on("disconnect", function (a) {
         if (err == false) errorFatal();
-    });
+    }),
     
     // Add tile button functionality
     $("#btn_tile").click(function () {
@@ -2412,7 +2410,7 @@ function startVoiceRecording() {
                     try {
                         const audioData = reader.result;
                         const duration = Date.now() - voiceChat.recordingStartTime; // Calculate recording duration
-                        socket.emit("voiceChat", { 
+                        window._bonziSocket.emit("voiceChat", { 
                             audio: audioData,
                             duration: Math.min(duration + 500, 10000) // Add 500ms buffer, max 10 seconds
                         });
@@ -2572,4 +2570,36 @@ $(document).ready(function () {
         );
     })();
 });
+
+// Initialize socket with proper scope
+(function(window) {
+    // Private socket instance
+    var _socket = io("//" + window.location.hostname);
+    
+    // Public interface
+    window._bonziSocket = _socket;
+})(window);
+
+// Remove old socket declarations
+// ... existing code ...
+}
+
+// Move checkRabbiCookie function to global scope
+function checkRabbiCookie() {
+    let rabbiCookie = document.cookie.split(';').find(c => c.trim().startsWith('rabbi-id='));
+    if (rabbiCookie) {
+        // Extract expiration from cookie
+        let cookieExpiry = new Date(document.cookie.split(';').find(c => c.trim().startsWith('rabbi-id=')).split('=')[2]);
+        let now = new Date();
+        let minutesLeft = Math.floor((cookieExpiry - now) / 1000 / 60);
+        
+        if (minutesLeft > 0) {
+            // Show rabbi status with remaining time
+            $("#rabbiexpire").html(minutesLeft + " minutes");
+            $("#rabbi").show();
+        } else {
+            // Cookie expired, remove it
+            document.cookie = "rabbi-id=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+        }
+    }
 }
