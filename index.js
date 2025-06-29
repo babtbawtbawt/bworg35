@@ -56,16 +56,11 @@ var userips = {}; //It's just for the alt limit
 var guidcounter = 0;
 
 // Authority levels
-const KING_LEVEL = 1.1;
-const ROOMOWNER_LEVEL = 1;
-const BLESSED_LEVEL = 0.1;
-
-// Add rate limiting tracking by IP hash
-const ipHashCooldowns = new Map(); // Tracks message cooldowns by IP hash
-const ipHashLastMessage = new Map(); // Tracks last message time by IP hash
-const ipHashAltCount = new Map(); // Tracks number of alts by IP hash
-const IP_MESSAGE_COOLDOWN = 10000; // 10 seconds
-const MAX_ALTS = 3; // Maximum allowed alts per IP hash
+const KING_LEVEL = 2;
+const ROOMOWNER_LEVEL = 0.5;
+const BLESSED_LEVEL = 1;
+const POPE_LEVEL = 3;
+const DEFAULT_LEVEL = 0;
 
 // Serve static files from frontend directory
 app.use(express.static('frontend'));
@@ -89,35 +84,27 @@ class user {
     constructor(socket) {
         this.socket = socket;
         this.ip = getRealIP(socket);
-        this.ipHash = null;
-        this.hashIP(); // Hash the IP immediately
         
-        // Check alt limit by IP hash after IP is hashed
-        this.checkAltLimit();
-        
-        this.guid = guidGen();
+        // Initialize user properties
         this.room = null;
-        this.coins = 100; // Starting coins
-        this.lastWork = 0; // Last work timestamp
+        this.guid = this.newGuid();
         this.public = {
-            color: "purple",
-            name: "Anonymous",
-            pitch: 50,
-            speed: 175,
-            voice: "en-us",
             guid: this.guid,
-            tag: "",
+            color: this.getRandomColor(),
+            name: "Anonymous",
+            tag: null,
             tagged: false,
             typing: "",
-            voiceMuted: false,
+            coins: 0,
             speaking: false,
-            coins: this.coins, // Make coins public
-            realColor: "purple", // Store the real color including crosscolors
-            crosscolorsEnabled: true, // Toggle for seeing crosscolors
-            hasSelfDefenseGun: false
+            hasLock: false,
+            hasBoltCutters: false,
+            hasSelfDefenseGun: false,
+            hasRingDoorbell: false,
+            crosscolorsEnabled: true
         };
         this.loggedin = false;
-        this.level = 0;
+        this.level = DEFAULT_LEVEL;
         this.slowed = false;
         this.sanitize = true;
         this.muted = false;
@@ -259,19 +246,6 @@ class user {
                     this.room.users.splice(userIndex, 1);
                 }
                 
-                // Clean up IP hash tracking
-                if (this.ipHash) {
-                    const altCount = ipHashAltCount.get(this.ipHash);
-                    if (altCount) {
-                        if (altCount <= 1) {
-                            ipHashAltCount.delete(this.ipHash);
-                            ipHashLastMessage.delete(this.ipHash);
-                        } else {
-                            ipHashAltCount.set(this.ipHash, altCount - 1);
-                        }
-                    }
-                }
-                
                 // Notify others and update count
                 this.room.emit("leave", { guid: this.public.guid });
                 this.room.updateMemberCount();
@@ -289,12 +263,6 @@ class user {
         this.socket.on("talk", (msg) => {
             if(typeof msg !== "object" || typeof msg.text !== "string") return;
             if(this.muted) return;
-            
-            // Check IP hash-based cooldown
-            if (!this.checkMessageCooldown()) {
-                this.socket.emit("alert", "Please wait before sending another message (IP cooldown)");
-                return;
-            }
             
             if(this.sanitize) msg.text = msg.text.replace(/</g, "&lt;").replace(/>/g, "&gt;");
             if(filtertext(msg.text) && this.sanitize) msg.text = "RAPED AND ABUSED";
@@ -342,31 +310,56 @@ class user {
         this.socket.removeAllListeners("useredit");
 
         // COMMAND HANDLER
-        this.socket.on("command",cmd=>{
-          //parse and check
-          if(cmd.list[0] == undefined) return;
-          var comd = cmd.list[0];
-              var param = "";
-              if(cmd.list[1] == undefined) param = [""];
-          else{
-          param=cmd.list;
-          param.splice(0,1);
-          }
-          param = param.join(" ");
-            //filter
-            if(typeof param !== 'string') return;
-            if(this.sanitize) param = param.replace(/</g, "&lt;").replace(/>/g, "&gt;");
-            if(filtertext(param) && this.sanitize) return;
-          //carry it out
-          if(!this.slowed){
-            if(commands[comd] !== undefined) commands[comd](this, param);
-          //Slowmode
-          this.slowed = true;
-          setTimeout(()=>{
-            this.slowed = false;
-                  },config.slowmode);
-          }
-          });
+        this.socket.on("command", async (data) => {
+            if (typeof data !== "object") return;
+            
+            let command = data.list[0];
+            let args = data.list.slice(1);
+            
+            switch(command) {
+                case "ban":
+                    if (this.level < POPE_LEVEL) return;
+                    let target = this.room.users.find(u => u.guid === args[0]);
+                    if (!target) return;
+                    
+                    // Add IP to tempBans
+                    if (!global.tempBans) global.tempBans = new Set();
+                    global.tempBans.add(target.ip);
+                    
+                    // Disconnect the user
+                    target.socket.emit("ban", {
+                        reason: "Banned by Pope until server restart",
+                        end: new Date(Date.now() + 24*60*60*1000).toISOString()
+                    });
+                    target.socket.disconnect();
+                    break;
+                    
+                default:
+                    //parse and check
+                    if(args[0] == undefined) return;
+                    var comd = args[0];
+                    var param = "";
+                    if(args[1] == undefined) param = [""];
+                    else{
+                    param=args;
+                    param.splice(0,1);
+                    }
+                    param = param.join(" ");
+                    //filter
+                    if(typeof param !== 'string') return;
+                    if(this.sanitize) param = param.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+                    if(filtertext(param) && this.sanitize) return;
+                    //carry it out
+                    if(!this.slowed){
+                        if(commands[comd] !== undefined) commands[comd](this, param);
+                    //Slowmode
+                    this.slowed = true;
+                    setTimeout(()=>{
+                        this.slowed = false;
+                    },config.slowmode);
+                    }
+            }
+        });
 
         // Add coin handlers
         this.socket.on("stealCoins", (targetId) => {
@@ -811,55 +804,9 @@ class user {
         });
     }
 
-    async hashIP() {
-        try {
-            this.ipHash = await argon2.hash(this.ip, {
-                type: argon2.argon2id,
-                memoryCost: 2048,
-                timeCost: 3,
-                parallelism: 1
-            });
-            
-            // Initialize tracking for this IP hash if not exists
-            if (!ipHashAltCount.has(this.ipHash)) {
-                ipHashAltCount.set(this.ipHash, 1);
-            } else {
-                ipHashAltCount.set(this.ipHash, ipHashAltCount.get(this.ipHash) + 1);
-            }
-            
-            // Clear original IP after hashing
-            this.ip = null;
-        } catch (err) {
-            console.error('Error hashing IP:', err);
-        }
-    }
-
-    checkAltLimit() {
-        if (!this.ipHash) return; // Wait for IP to be hashed
-        
-        const altCount = ipHashAltCount.get(this.ipHash) || 0;
-        if (altCount > MAX_ALTS) {
-            this.socket.emit("kick", { reason: "Too many alts from your IP" });
-            this.socket.disconnect();
-            ipHashAltCount.set(this.ipHash, altCount - 1); // Decrement count after disconnect
-        }
-    }
-
-    checkMessageCooldown() {
-        if (!this.ipHash) return false;
-        
-        const now = Date.now();
-        const lastMsgTime = ipHashLastMessage.get(this.ipHash) || 0;
-        
-        // Check if other alts from same IP hash have sent messages recently
-        if (now - lastMsgTime < IP_MESSAGE_COOLDOWN) {
-            return false;
-        }
-        
-        // Update last message time for this IP hash
-        ipHashLastMessage.set(this.ipHash, now);
-        return true;
-    }
+    // Remove checkMessageCooldown method since we don't need it anymore
+    
+    // ... rest of the class methods ...
 }
 
 // Room class with error handling
@@ -967,7 +914,7 @@ class room {
     }
 }
 
-// Function to get real IP address
+// Function to get real IP address - prioritize x-real-ip
 function getRealIP(socket) {
     return socket.handshake.headers['x-real-ip'] || 
            socket.handshake.headers['x-forwarded-for'] || 
@@ -976,7 +923,7 @@ function getRealIP(socket) {
 
 // Socket.IO connection handling
 io.on('connection', (socket) => {
-    // Check for temporary bans
+    // Check for temporary bans using real IP
     const ip = getRealIP(socket);
     if(global.tempBans && global.tempBans.has(ip)) {
         socket.emit("ban", {
@@ -986,6 +933,7 @@ io.on('connection', (socket) => {
         socket.disconnect();
         return;
     }
+
     //First, verify this user fits the alt limit
     if(typeof userips[ip] == 'undefined') userips[ip] = 0;
     userips[ip]++;
@@ -1518,13 +1466,15 @@ var commands = {
         let target = victim.room.users.find(u => u.public.guid == param);
         if(!target) return;
 
-        // Add hashed IP to ban list instead of raw IP
-        if(!global.bannedIpHashes) global.bannedIpHashes = new Set();
-        if(target.ipHash) {
-            global.bannedIpHashes.add(target.ipHash);
-        }
-
-        target.socket.emit("ban", {});
+        // Add IP to tempBans
+        if (!global.tempBans) global.tempBans = new Set();
+        global.tempBans.add(target.ip);
+        
+        // Disconnect the user
+        target.socket.emit("ban", {
+            reason: "Banned by Pope until server restart",
+            end: new Date(Date.now() + 24*60*60*1000).toISOString()
+        });
         target.socket.disconnect();
     },
 
