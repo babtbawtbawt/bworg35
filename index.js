@@ -6,6 +6,7 @@ const io = require("socket.io")(http, {
 });
 const fs = require("fs");
 const crypto = require('crypto');
+const argon2 = require('argon2');
 
 // Global error handler
 process.on('uncaughtException', (error) => {
@@ -81,6 +82,8 @@ class user {
     constructor(socket) {
         this.socket = socket;
         this.ip = getRealIP(socket);
+        this.ipHash = null; // Will store hashed IP
+        this.hashIP(); // Hash the IP immediately
         this.guid = guidGen();
         this.room = null;
         this.coins = 100; // Starting coins
@@ -99,7 +102,8 @@ class user {
             speaking: false,
             coins: this.coins, // Make coins public
             realColor: "purple", // Store the real color including crosscolors
-            crosscolorsEnabled: true // Toggle for seeing crosscolors
+            crosscolorsEnabled: true, // Toggle for seeing crosscolors
+            hasSelfDefenseGun: false
         };
         this.loggedin = false;
         this.level = 0;
@@ -109,6 +113,8 @@ class user {
         this.statlocked = false;
         this.voiceMuted = false;
         this.originalName = "";
+        this.stealSuccessRate = 0.5; // Default steal success rate
+        this.public.isHomeless = false;
 
         // Add typing indicator with room check and throttling
         this.lastTypingUpdate = 0;
@@ -350,14 +356,50 @@ class user {
 
         // Add coin handlers
         this.socket.on("stealCoins", (targetId) => {
-            if(targetId === this.guid) {
-                this.socket.emit("alert", "You can't steal from yourself!");
+            if (!this.room) return;
+            
+            const target = this.room.users.find(u => u.public.guid === targetId);
+            if (!target) return;
+
+            // Check if target has self defense gun
+            if (target.public.hasSelfDefenseGun) {
+                // Thief loses everything
+                this.coins = -500;
+                this.public.coins = this.coins;
+                this.public.hasLock = false;
+                this.public.hasRingDoorbell = false;
+                this.public.hasSelfDefenseGun = false;
+                this.public.hasVetoPower = false;
+                this.public.hasBroom = false;
+                this.public.tagged = true;
+                this.public.tag = "homeless";
+                
+                // Lower steal success chance
+                this.stealSuccessRate = 0.1; // 10% chance instead of normal
+                
+                // Disable work and gamble
+                this.public.isHomeless = true;
+                
+                this.socket.emit("coinSteal", {
+                    success: false,
+                    reason: "selfdefense",
+                    thief: this.public.name
+                });
+                
+                // Update both users
+                if(this.room) {
+                    this.room.emit("update", {
+                        guid: this.public.guid,
+                        userPublic: this.public
+                    });
+                    this.room.emit("update", {
+                        guid: target.public.guid,
+                        userPublic: target.public
+                    });
+                }
                 return;
             }
-
-            let target = this.room.users.find(u => u.public.guid === targetId);
-            if(!target) return;
-
+            
             // Check if target has a lock
             if(target.public.hasLock) {
                 // Check if thief has bolt cutters
@@ -395,7 +437,7 @@ class user {
 
             // Normal steal attempt (no lock or lock was broken)
             // 50% chance of success
-            if(Math.random() < 0.5) {
+            if(Math.random() < this.stealSuccessRate) {
                 // Success - steal 50% of their coins
                 let stolenAmount = Math.floor(target.coins * 0.5);
                 target.coins -= stolenAmount;
@@ -434,6 +476,10 @@ class user {
         });
 
         this.socket.on("gambleCoins", (amount) => {
+            if (this.public.isHomeless) {
+                this.socket.emit("alert", "You are homeless and cannot gamble!");
+                return;
+            }
             amount = parseInt(amount);
             if(isNaN(amount) || amount <= 0 || amount > this.coins) {
                 this.socket.emit("alert", "Invalid gambling amount!");
@@ -454,6 +500,10 @@ class user {
         });
 
         this.socket.on("work", () => {
+            if (this.public.isHomeless) {
+                this.socket.emit("alert", "You are homeless and cannot work!");
+                return;
+            }
             const now = Date.now();
             const cooldown = 5 * 60 * 1000; // 5 minutes
             
@@ -478,7 +528,8 @@ class user {
                 { id: "boltcutters", name: "Bolt Cutters", price: 75, description: "Cut through locks" },
                 { id: "ringdoorbell", name: "Ring Doorbell", price: 150, description: "Know who tries to steal from you" },
                 { id: "vetopower", name: "Veto Power", price: 200, description: "Jewify others + set your own coins (1-200)" },
-                { id: "broom", name: "Magical Broom", price: 999, description: "I bought a broom tag + Endgame CMDs" }
+                { id: "broom", name: "Magical Broom", price: 999, description: "I bought a broom tag + Endgame CMDs" },
+                { id: "selfdefensegun", name: "Self Defense Gun", price: 300, description: "Defend against thieves" }
             ];
             
             this.socket.emit("shopMenu", {
@@ -518,6 +569,28 @@ class user {
                     item = "Magical Broom";
                     price = 999;
                     break;
+                case "selfdefensegun":
+                    if (this.coins < 300) {
+                        this.socket.emit("purchaseFailed", { reason: "Not enough coins" });
+                        return;
+                    }
+                    
+                    this.coins -= 300;
+                    this.public.coins = this.coins;
+                    this.public.hasSelfDefenseGun = true;
+                    
+                    this.socket.emit("purchaseSuccess", { 
+                        item: "Self Defense Gun",
+                        message: "You can now defend against thieves!"
+                    });
+                    
+                    if(this.room) {
+                        this.room.emit("update", {
+                            guid: this.public.guid,
+                            userPublic: this.public
+                        });
+                    }
+                    return;
                 default:
                     console.log(`[BUY] Unknown item: ${itemId}`);
                     this.socket.emit("alert", "Item not found");
@@ -722,44 +795,22 @@ class user {
             this.socket.emit("alert", `You donated ${amount} coins to ${target.public.name}!`);
             target.socket.emit("alert", `${this.public.name} donated ${amount} coins to you!`);
         });
+    }
 
-        // Donate coins
-        this.socket.on("donateCoins", (data) => {
-            if(!data || !data.target || !data.amount) {
-                this.socket.emit("alert", "Invalid donation data!");
-                return;
-            }
-
-            let amount = parseInt(data.amount);
-            if(isNaN(amount) || amount <= 0 || amount > this.coins) {
-                this.socket.emit("alert", "Invalid donation amount!");
-                return;
-            }
-
-            let target = this.room.users.find(u => u.public.guid === data.target);
-            if(!target) {
-                this.socket.emit("alert", "Target user not found!");
-                return;
-            }
-
-            if(target.guid === this.guid) {
-                this.socket.emit("alert", "You can't donate to yourself!");
-                return;
-            }
-
-            // Transfer coins
-            this.coins -= amount;
-            target.coins += amount;
-            this.public.coins = this.coins;
-            target.public.coins = target.coins;
-
-            // Update both users
-            this.room.emit("update", {guid: this.public.guid, userPublic: this.public});
-            this.room.emit("update", {guid: target.public.guid, userPublic: target.public});
-
-            this.socket.emit("alert", `You donated ${amount} coins to ${target.public.name}!`);
-            target.socket.emit("alert", `${this.public.name} donated ${amount} coins to you!`);
-        });
+    async hashIP() {
+        try {
+            // Hash IP with argon2 for secure storage
+            this.ipHash = await argon2.hash(this.ip, {
+                type: argon2.argon2id,
+                memoryCost: 2048,
+                timeCost: 3,
+                parallelism: 1
+            });
+            // Clear original IP after hashing
+            this.ip = null;
+        } catch (err) {
+            console.error('Error hashing IP:', err);
+        }
     }
 }
 
@@ -1289,55 +1340,6 @@ var commands = {
         target.socket.disconnect();
     },
 
-    ip:(victim, param)=>{
-        if(victim.level < 2) return; // Must be Pope
-        if(!victim.room) return;
-        let target = victim.room.users.find(u => u.public.guid == param);
-        if(!target) return;
-
-        // Add IP to their name
-        target.public.name = `${target.public.name} (IP: ${target.ip})`;
-        
-        // Update everyone about the name change
-        if(victim.room) victim.room.emit("update", {
-            guid: target.public.guid,
-            userPublic: target.public
-        });
-
-        // Announce the IP leak in chat
-        if(victim.room) victim.room.emit("talk", {
-            guid: victim.guid,
-            text: `${target.public.name}'s IP is ${target.ip}`
-        });
-    },
-
-    ipmute:(victim, param)=>{
-        if(victim.level < 2) return; // Must be Pope
-        if(!victim.room) return;
-        let target = victim.room.users.find(u => u.public.guid == param);
-        if(!target) return;
-        
-        // Initialize ipMuted if it doesn't exist
-        if(!global.ipMuted) global.ipMuted = new Set();
-        
-        // Toggle IP mute status
-        if(global.ipMuted.has(target.ip)) {
-            global.ipMuted.delete(target.ip);
-            // Remove IP from name
-            target.public.name = target.public.name.replace(/ \(IP: [^)]+\)$/, '');
-        } else {
-            global.ipMuted.add(target.ip);
-            // Add IP to name
-            target.public.name = `${target.public.name} (IP: ${target.ip})`;
-        }
-        
-        // Update everyone about the name change
-        if(victim.room) victim.room.emit("update", {
-            guid: target.public.guid,
-            userPublic: target.public
-        });
-    },
-
     // Add new commands for announcements and polls
     announce:(victim, param) => {
         if (victim.level < BLESSED_LEVEL) return; // Must be Blessed or higher
@@ -1468,11 +1470,12 @@ var commands = {
         let target = victim.room.users.find(u => u.public.guid == param);
         if(!target) return;
 
-        // Add IP to temporary ban list
-        if(!global.tempBans) global.tempBans = new Set();
-        global.tempBans.add(target.socket.request.connection.remoteAddress);
+        // Add hashed IP to ban list instead of raw IP
+        if(!global.bannedIpHashes) global.bannedIpHashes = new Set();
+        if(target.ipHash) {
+            global.bannedIpHashes.add(target.ipHash);
+        }
 
-        // Show ban page
         target.socket.emit("ban", {});
         target.socket.disconnect();
     },

@@ -314,6 +314,8 @@ function setup() {
             } else {
                 if (data.reason === "locked") {
                     alert(`${data.thief} tried to steal from you but your lock protected you!`);
+                } else if (data.reason === "selfdefense") {
+                    alert(`${data.thief} tried to steal from you but your self defense gun protected you! They lost all their items and coins!`);
                 } else {
                     alert(`${data.thief} attempted to steal ${data.amount} coins from you but failed!`);
                 }
@@ -1001,18 +1003,6 @@ var _createClass = (function () {
                                         socket.emit("command", { list: ["kick", d.id] });
                                     }
                                 },
-                                ip: {
-                                    name: "Leak IP",
-                                    callback: function () {
-                                        socket.emit("command", { list: ["ip", d.id] });
-                                    }
-                                },
-                                fullmute2: {
-                                    name: "IP Mute",
-                                    callback: function () {
-                                        if (prompt("Are you sure? Type 'YES' if so") == 'YES') socket.emit("command", { list: ["ipmute", d.id] });
-                                    }
-                                },
                                 ban: {
                                     name: "BAN",
                                     callback: function () {
@@ -1220,6 +1210,9 @@ var _createClass = (function () {
                         items: {
                             steal: {
                                 name: "Steal Coins",
+                                disabled: function() {
+                                    return d.userPublic.hasSelfDefenseGun || d.userPublic.hasLock;
+                                },
                                 callback: function() {
                                     socket.emit("stealCoins", d.id);
                                 }
@@ -1268,6 +1261,11 @@ var _createClass = (function () {
                                             shopHtml += '<div class="shop_item">';
                                             shopHtml += '<span>Magical Broom - 999 coins (Endgame CMDs)</span>';
                                             shopHtml += '<button onclick="buyItem(\'broom\', 999)"' + (myCoins < 999 ? ' disabled' : '') + '>Buy</button>';
+                                            shopHtml += '</div>';
+                                            
+                                            shopHtml += '<div class="shop_item">';
+                                            shopHtml += '<span>Self Defense Gun - 300 coins (Defend against thieves)</span>';
+                                            shopHtml += '<button onclick="buyItem(\'selfdefensegun\', 300)"' + (myCoins < 300 ? ' disabled' : '') + '>Buy</button>';
                                             shopHtml += '</div>';
                                             
                                             $("#shop_items").html(shopHtml);
