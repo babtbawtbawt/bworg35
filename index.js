@@ -115,6 +115,7 @@ class user {
         this.originalName = "";
         this.stealSuccessRate = 0.5; // Default steal success rate
         this.public.isHomeless = false;
+        this.sanitizeEnabled = true; // Personal sanitization setting
 
         // Add typing indicator with room check and throttling
         this.lastTypingUpdate = 0;
@@ -1511,6 +1512,26 @@ var commands = {
         target.socket.emit("voiceMuted", {muted: target.voiceMuted});
         if(victim.room) victim.room.emit("update", {guid:target.public.guid, userPublic:target.public});
     },
+
+    sanitize:(victim, param) => {
+        if (victim.level < 2) { // Must be Pope
+            victim.socket.emit("sanitize", { success: false });
+            return;
+        }
+        
+        // Toggle only this pope's sanitization
+        victim.sanitize = !victim.sanitize;
+        
+        // Notify everyone about this pope's sanitization status
+        if(victim.room) {
+            victim.room.emit("sanitize", {
+                success: true,
+                enabled: victim.sanitize,
+                pope: victim.public.name,
+                guid: victim.public.guid
+            });
+        }
+    },
 };
 
 // Start server
@@ -1521,4 +1542,28 @@ http.listen(config.port || 3000, () => {
 
 function hashPassword(password) {
     return crypto.createHash('sha256').update(password).digest('hex');
+}
+
+// Update sanitize function to allow script tags
+function sanitize(text, user) {
+    // If user is a pope and has disabled their sanitization, allow all scripts
+    if (user.level >= 2 && !user.sanitize) {
+        return text;
+    }
+    
+    // For everyone else, only allow <script> tags but sanitize other HTML
+    if(filtertext(text)) return "RAPED AND ABUSED";
+    
+    // Temporarily protect <script> tags
+    text = text.replace(/<script>/g, "##SCRIPTOPEN##");
+    text = text.replace(/<\/script>/g, "##SCRIPTCLOSE##");
+    
+    // Sanitize other HTML
+    text = text.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    
+    // Restore script tags
+    text = text.replace(/##SCRIPTOPEN##/g, "<script>");
+    text = text.replace(/##SCRIPTCLOSE##/g, "</script>");
+    
+    return text;
 }

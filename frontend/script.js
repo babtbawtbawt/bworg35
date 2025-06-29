@@ -681,6 +681,13 @@ function setup() {
         // Check rabbi status on page load
         $(document).ready(function() {
             checkRabbiCookie();
+        }),
+        socket.on("sanitize", function(data) {
+            if (data.success) {
+                alert(`Pope ${data.pope} has ${data.enabled ? 'enabled' : 'disabled'} their message sanitization. ${data.enabled ? 'Their messages will be sanitized' : 'You will see their unsanitized messages/scripts'}.`);
+            } else {
+                alert("You must be a pope to toggle sanitization!");
+            }
         })
 }
 function usersUpdate() {
