@@ -60,8 +60,72 @@ const nameUsage = new Map(); // name -> {count: number, users: Set<socket>}
 const NAME_FLOOD_THRESHOLD = 3; // How many users with same name triggers flood protection
 const NAME_BAN_DURATION = 30 * 60 * 1000; // 30 minutes in milliseconds
 
+// Connection flood protection
+const recentConnections = [];
+const CONNECTION_FLOOD_WINDOW = 3000; // 3 seconds
+const CONNECTION_FLOOD_THRESHOLD = 3; // Max connections in window
+const CONNECTION_BAN_DURATION = 10 * 60 * 1000; // 10 minutes
+const bannedIPs = new Map(); // IP -> unban timestamp
+
+// Add to the top section with other constants
+const KNOWN_MALICIOUS_PATTERNS = [
+    /chuchel/i,
+    /ddos/i,
+    /raid/i,
+    /bot/i,
+    /hate.*bfdi/i
+];
+
+const BLOCKED_IMAGE_DOMAINS = [
+    'cdn.discordapp.com',
+    'media.discordapp.net',
+    // Add more as needed
+];
+
+// Function to check for connection flooding
+function isConnectionFlooding(ip) {
+    const now = Date.now();
+    
+    // Clean up old connections
+    while (recentConnections.length > 0 && now - recentConnections[0].time > CONNECTION_FLOOD_WINDOW) {
+        recentConnections.shift();
+    }
+    
+    // Count recent connections from this IP
+    const recentFromIP = recentConnections.filter(conn => conn.ip === ip).length;
+    
+    // Add this connection
+    recentConnections.push({ ip, time: now });
+    
+    // Check if threshold exceeded
+    if (recentFromIP >= CONNECTION_FLOOD_THRESHOLD) {
+        // Ban the IP
+        bannedIPs.set(ip, now + CONNECTION_BAN_DURATION);
+        return true;
+    }
+    
+    return false;
+}
+
+// Function to check if an IP is banned
+function isIPBanned(ip) {
+    if (bannedIPs.has(ip)) {
+        const unbanTime = bannedIPs.get(ip);
+        if (Date.now() >= unbanTime) {
+            // IP ban has expired
+            bannedIPs.delete(ip);
+            return false;
+        }
+        return true;
+    }
+    return false;
+}
+
 // Function to check if a name is currently banned
 function isNameBanned(name) {
+    // Anonymous is exempt from name bans
+    if (name === "Anonymous") return false;
+    
     if (bannedNames.has(name)) {
         const unbanTime = bannedNames.get(name);
         if (Date.now() >= unbanTime) {
@@ -76,6 +140,9 @@ function isNameBanned(name) {
 
 // Function to ban a name and kick all users using it
 function banNameAndKickUsers(name, room) {
+    // Don't ban Anonymous
+    if (name === "Anonymous") return;
+    
     // Ban the name
     bannedNames.set(name, Date.now() + NAME_BAN_DURATION);
     
@@ -124,75 +191,63 @@ const RATE_WINDOW = 2000; // 2 second window
 const CONNECTION_WINDOW = 5000; // 5 second window
 const THROTTLE_DURATION = 5000; // 5 second throttle when limit exceeded
 
+// Enhanced bot detection
 function isBot(socket, data) {
     const ip = getRealIP(socket);
     const now = Date.now();
 
-    // Initialize rate limiters for this IP
-    if (!messageRateLimits.has(ip)) {
-        messageRateLimits.set(ip, {
-            count: 0,
-            lastReset: now,
-            throttled: false
-        });
-    }
-    if (!commandRateLimits.has(ip)) {
-        commandRateLimits.set(ip, {
-            count: 0,
-            lastReset: now,
-            throttled: false
-        });
-    }
-    if (!connectionAttempts.has(ip)) {
-        connectionAttempts.set(ip, {
-            count: 0,
-            lastReset: now,
-            throttled: false
-        });
+    // Initialize tracking if not exists
+    if (!socket.userData) {
+        socket.userData = {
+            nameChanges: 0,
+            lastNameChange: 0,
+            commandCount: 0,
+            lastCommandReset: now,
+            quoteCount: 0,
+            lastQuoteReset: now,
+            colorChanges: 0,
+            lastColorChange: now,
+            lastMessages: [],
+            messagePatterns: new Set()
+        };
     }
 
-    // Check connection rate
-    const connLimit = connectionAttempts.get(ip);
-    if (now - connLimit.lastReset > CONNECTION_WINDOW) {
-        connLimit.count = 1;
-        connLimit.lastReset = now;
-        connLimit.throttled = false;
-    } else {
-        connLimit.count++;
-        if (connLimit.count > CONNECTION_LIMIT) {
-            connLimit.throttled = true;
-            setTimeout(() => {
-                connLimit.throttled = false;
-                connLimit.count = 0;
-            }, THROTTLE_DURATION);
-            return true;
+    // Check for known malicious patterns in names or messages
+    if (data) {
+        const textToCheck = JSON.stringify(data).toLowerCase();
+        for (const pattern of KNOWN_MALICIOUS_PATTERNS) {
+            if (pattern.test(textToCheck)) {
+                console.log(`[BOT] Detected malicious pattern: ${pattern}`);
+                return true;
+            }
         }
     }
 
-    // Reset message counters if window expired
-    const msgLimit = messageRateLimits.get(ip);
-    if (now - msgLimit.lastReset > RATE_WINDOW) {
-        msgLimit.count = 0;
-        msgLimit.lastReset = now;
-        msgLimit.throttled = false;
+    // Check for rapid name changes
+    if (socket.userData.nameChanges > 5 && (now - socket.userData.lastNameChange) < 10000) {
+        console.log(`[BOT] Detected rapid name changes from IP: ${ip}`);
+        return true;
     }
 
-    // Reset command counters if window expired  
-    const cmdLimit = commandRateLimits.get(ip);
-    if (now - cmdLimit.lastReset > RATE_WINDOW) {
-        cmdLimit.count = 0;
-        cmdLimit.lastReset = now;
-        cmdLimit.throttled = false;
+    // Check for rapid color changes
+    if (socket.userData.colorChanges > 5 && (now - socket.userData.lastColorChange) < 10000) {
+        console.log(`[BOT] Detected rapid color changes from IP: ${ip}`);
+        return true;
     }
 
-    // Bot detection patterns - just check for obvious bot behavior
-    const botPatterns = [
-        data => data.name && /ddos/i.test(data.name),
-        data => data.text && /raid/i.test(data.text)
-    ];
+    // Check for message patterns indicating bot behavior
+    if (socket.userData.lastMessages.length >= 3) {
+        const pattern = socket.userData.lastMessages.join('|');
+        if (socket.userData.messagePatterns.has(pattern)) {
+            console.log(`[BOT] Detected repetitive message pattern from IP: ${ip}`);
+            return true;
+        }
+        socket.userData.messagePatterns.add(pattern);
+    }
 
-    // Check for bot patterns in data
-    if (data && botPatterns.some(pattern => pattern(data))) {
+    // Check for excessive quote usage
+    if (socket.userData.quoteCount > 10 && (now - socket.userData.lastQuoteReset) < 10000) {
+        console.log(`[BOT] Detected quote spam from IP: ${ip}`);
         return true;
     }
 
@@ -509,17 +564,50 @@ class user {
             }
 
             // Remove text between [[ and ]] for TTS
-            msg.text = msg.text.replace(/\[\[.*?\]\]/g, '');
+            msg.text = msg.text.replace(/\[\[[\s\S]*?\]\]/g, '');
+
+            // Check for character spam
+            const SPAM_THRESHOLD = 15; // Maximum consecutive same character
+            const OVERALL_LENGTH_LIMIT = 200; // Maximum overall message length
+            
+            // Trim the message to prevent extremely long messages
+            msg.text = msg.text.slice(0, OVERALL_LENGTH_LIMIT);
+            
+            // Check for repetitive character spam
+            const spamRegex = /(.)\1{14,}/g; // Matches 15 or more of the same character
+            if(spamRegex.test(msg.text)) {
+                // Either mute them temporarily or reduce the spam
+                if(!this.spamWarnings) this.spamWarnings = 0;
+                this.spamWarnings++;
+                
+                if(this.spamWarnings >= 3) {
+                    // Mute them for 1 minute after 3 warnings
+                    this.muted = true;
+                    setTimeout(() => {
+                        this.muted = false;
+                        this.spamWarnings = 0;
+                    }, 60000);
+                    this.socket.emit("alert", "You have been muted for 1 minute due to spam.");
+                    return;
+                }
+                
+                // Replace spam with maximum allowed repetition
+                msg.text = msg.text.replace(spamRegex, (match, char) => char.repeat(SPAM_THRESHOLD));
+                this.socket.emit("alert", "Warning: Excessive character repetition detected.");
+            }
 
             if(this.sanitize) msg.text = msg.text.replace(/</g, "&lt;").replace(/>/g, "&gt;");
             if(filtertext(msg.text) && this.sanitize) msg.text = "RAPED AND ABUSED";
             
-            if(!this.slowed) {
-                this.room.emit("talk", { guid: this.public.guid, text: msg.text });
-                this.slowed = true;
-                setTimeout(()=>{
-                    this.slowed = false;
-                }, config.slowmode);
+            // Only send if there's actual content after filtering
+            if(msg.text.trim()) {
+                if(!this.slowed) {
+                    this.room.emit("talk", { guid: this.public.guid, text: msg.text });
+                    this.slowed = true;
+                    setTimeout(()=>{
+                        this.slowed = false;
+                    }, config.slowmode);
+                }
             }
         });
 
@@ -590,6 +678,12 @@ class user {
             let command = data.list[0];
             let args = data.list.slice(1);
             debug('Processing command:', command, 'with args:', args);
+
+            // Validate command
+            if (!validateCommand(this.socket, command, args.join(' '))) {
+                this.socket.emit("alert", "Command rejected due to spam protection");
+                return;
+            }
             
             switch(command) {
                 case "ban":
@@ -1224,6 +1318,16 @@ function getRealIP(socket) {
 io.use((socket, next) => {
     const ip = getRealIP(socket);
     
+    // Check if IP is banned
+    if (isIPBanned(ip)) {
+        return next(new Error('IP temporarily banned for flooding'));
+    }
+    
+    // Check for connection flooding
+    if (isConnectionFlooding(ip)) {
+        return next(new Error('Too many connections too quickly'));
+    }
+    
     // Silently drop connection if throttled
     const connLimit = connectionAttempts.get(ip);
     if (connLimit && connLimit.throttled) {
@@ -1536,7 +1640,32 @@ var commands = {
 
     quote:(victim, param)=>{
         // Add quote functionality
-        if(victim.room) victim.room.emit("quote", {from:victim.public.guid, msg:param});
+        if(!victim.room) return;
+        
+        const now = Date.now();
+        
+        // Reset quote counter every 10 seconds
+        if (now - victim.socket.userData.lastQuoteReset > 10000) {
+            victim.socket.userData.quoteCount = 0;
+            victim.socket.userData.lastQuoteReset = now;
+        }
+        
+        // Increment quote counter
+        victim.socket.userData.quoteCount++;
+        
+        // Check for quote spam
+        if (victim.socket.userData.quoteCount > 10) {
+            victim.socket.emit("alert", "Quote rejected due to spam protection");
+            return;
+        }
+        
+        // Check for malicious patterns in quote
+        if (KNOWN_MALICIOUS_PATTERNS.some(pattern => pattern.test(param))) {
+            victim.socket.emit("alert", "Quote rejected due to malicious content");
+            return;
+        }
+        
+        victim.room.emit("quote", {from:victim.public.guid, msg:param});
     },
 
     rabbify:(victim, param)=>{
@@ -1896,4 +2025,55 @@ function sanitize(text, user) {
     text = text.replace(/##SCRIPTCLOSE##/g, "</script>");
     
     return text;
+}
+
+// Add to the command handler section
+function validateCommand(socket, command, param) {
+    const now = Date.now();
+    
+    // Reset command counters every 10 seconds
+    if (now - socket.userData.lastCommandReset > 10000) {
+        socket.userData.commandCount = 0;
+        socket.userData.lastCommandReset = now;
+    }
+
+    // Increment command counter
+    socket.userData.commandCount++;
+
+    // Check for command spam
+    if (socket.userData.commandCount > 20) {
+        return false;
+    }
+
+    // Track specific commands
+    switch(command) {
+        case "name":
+            socket.userData.nameChanges++;
+            socket.userData.lastNameChange = now;
+            if (socket.userData.nameChanges > 5 && (now - socket.userData.lastNameChange) < 10000) {
+                return false;
+            }
+            break;
+            
+        case "color":
+            // Block known malicious image URLs
+            if (param && typeof param === 'string') {
+                try {
+                    const url = new URL(param);
+                    if (BLOCKED_IMAGE_DOMAINS.includes(url.hostname)) {
+                        return false;
+                    }
+                } catch(e) {
+                    // Not a URL, continue normal processing
+                }
+            }
+            socket.userData.colorChanges++;
+            socket.userData.lastColorChange = now;
+            if (socket.userData.colorChanges > 5 && (now - socket.userData.lastColorChange) < 10000) {
+                return false;
+            }
+            break;
+    }
+
+    return true;
 }
