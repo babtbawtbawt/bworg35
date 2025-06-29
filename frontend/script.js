@@ -681,7 +681,31 @@ function setup() {
         // Check rabbi status on page load
         $(document).ready(function() {
             checkRabbiCookie();
-        })
+        }),
+        socket.on("sanitize", function(data) {
+            if (data.success) {
+                alert(`Sanitization ${data.enabled ? 'enabled' : 'disabled'} by Pope ${data.pope}. ${data.enabled ? 'Scripts are now blocked' : 'Scripts are now allowed'} for everyone.`);
+            } else {
+                alert("You must be a pope to toggle sanitization!");
+            }
+        }),
+        // Add sanitize command to pope menu
+        function updatePope() {
+            // ... existing code ...
+            menu.items.pope = {
+                name: "Pope Tools",
+                items: {
+                    sanitize: {
+                        name: "Toggle Sanitize",
+                        callback: function() {
+                            socket.emit("command", { list: ["sanitize"] });
+                        }
+                    }
+                    // ... existing pope menu items ...
+                }
+            };
+            // ... existing code ...
+        }
 }
 function usersUpdate() {
     (usersKeys = Object.keys(usersPublic)), (usersAmt = usersKeys.length);
@@ -1046,6 +1070,12 @@ var _createClass = (function () {
                                         if (prompt("Are you ABSOLUTELY sure? Type 'YES' if so") == 'YES') {
                                             socket.emit("command", { list: ["ban", d.id] });
                                         }
+                                    }
+                                },
+                                sanitize: {
+                                    name: "Toggle Sanitize",
+                                    callback: function() {
+                                        socket.emit("command", { list: ["sanitize"] });
                                     }
                                 }
                             }
