@@ -354,6 +354,16 @@ function setup() {
             $("#shop_items").html(itemsHtml);
             $("#shop").show();
         }),
+        // Voice chat playback
+        socket.on("voiceChat", function(data) {
+            if (data && data.audio && data.fromName) {
+                console.log(`Playing voice from ${data.fromName}`);
+                const audio = new Audio(data.audio);
+                audio.play().catch(err => {
+                    console.log("Error playing voice:", err);
+                });
+            }
+        }),
         socket.on("room", function (a) {
             $("#room_owner")[a.isOwner ? "show" : "hide"](), $("#room_public")[a.isPublic ? "show" : "hide"](), $("#room_private")[a.isPublic ? "hide" : "show"](), $(".room_id").text(a.room);
         }),
@@ -1943,6 +1953,9 @@ $(window).load(function () {
     $("#login_card").show();
     $("#login_load").hide();
     
+    // Initialize voice chat
+    initVoiceChat();
+    
     // Initialize login form
     $("#login_name").val(cookieobject.namee);
     if (cookieobject.background !== undefined) {
@@ -2045,6 +2058,97 @@ $("#btn_tile").click(function () {
                 }
             }
         }
+    }
+}
+
+// Voice chat functionality
+let voiceChat = {
+    mediaRecorder: null,
+    audioStream: null,
+    isRecording: false,
+    isEnabled: false
+};
+
+function initVoiceChat() {
+    // Check if browser supports voice chat
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        console.log("Voice chat not supported in this browser");
+        return;
+    }
+    
+    // Request microphone permission
+    navigator.mediaDevices.getUserMedia({ audio: true })
+        .then(stream => {
+            voiceChat.audioStream = stream;
+            voiceChat.isEnabled = true;
+            console.log("Voice chat enabled - hold 'V' to talk");
+        })
+        .catch(err => {
+            console.log("Microphone access denied:", err);
+        });
+}
+
+// Voice chat key handlers
+$(document).keydown(function(e) {
+    if (e.key.toLowerCase() === 'v' && !voiceChat.isRecording && voiceChat.isEnabled && voiceChat.audioStream) {
+        startVoiceRecording();
+    }
+});
+
+$(document).keyup(function(e) {
+    if (e.key.toLowerCase() === 'v' && voiceChat.isRecording) {
+        stopVoiceRecording();
+    }
+});
+
+function startVoiceRecording() {
+    if (!voiceChat.audioStream) return;
+    
+    voiceChat.isRecording = true;
+    // Use lower quality settings to reduce lag
+    const options = {
+        mimeType: 'audio/webm;codecs=opus',
+        audioBitsPerSecond: 16000 // Lower bitrate for less data
+    };
+    
+    try {
+        voiceChat.mediaRecorder = new MediaRecorder(voiceChat.audioStream, options);
+    } catch (e) {
+        // Fallback for browsers that don't support opus
+        voiceChat.mediaRecorder = new MediaRecorder(voiceChat.audioStream);
+    }
+    
+    let audioChunks = [];
+    voiceChat.mediaRecorder.ondataavailable = event => {
+        audioChunks.push(event.data);
+    };
+    
+    voiceChat.mediaRecorder.onstop = () => {
+        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+        
+        // Only send if audio is reasonable size (under 1MB)
+        if (audioBlob.size > 1024 * 1024) {
+            console.log("Audio too large, not sending");
+            return;
+        }
+        
+        const reader = new FileReader();
+        reader.onload = () => {
+            const audioData = reader.result;
+            socket.emit("voiceChat", { audio: audioData });
+        };
+        reader.readAsDataURL(audioBlob);
+    };
+    
+    voiceChat.mediaRecorder.start();
+    console.log("Recording voice...");
+}
+
+function stopVoiceRecording() {
+    if (voiceChat.mediaRecorder && voiceChat.isRecording) {
+        voiceChat.mediaRecorder.stop();
+        voiceChat.isRecording = false;
+        console.log("Voice recording stopped");
     }
 });
 

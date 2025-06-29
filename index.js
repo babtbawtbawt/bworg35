@@ -79,7 +79,8 @@ class user {
             voiceMuted: false,
             speaking: false,
             coins: this.coins, // Make coins public
-            realColor: "purple" // Store the real color including crosscolors
+            realColor: "purple", // Store the real color including crosscolors
+            crosscolorsEnabled: true // Toggle for seeing crosscolors
         };
         this.loggedin = false;
         this.level = 0;
@@ -90,10 +91,16 @@ class user {
         this.voiceMuted = false;
         this.originalName = "";
 
-        // Add typing indicator with room check
+        // Add typing indicator with room check and throttling
+        this.lastTypingUpdate = 0;
         this.socket.on("typing", (data) => {
             if(!this.room || !this.loggedin) return;
             if(typeof data !== "object") return;
+            
+            // Throttle typing updates to reduce lag
+            const now = Date.now();
+            if (now - this.lastTypingUpdate < 500) return; // Max 2 updates per second
+            this.lastTypingUpdate = now;
             
             this.public.typing = data.state === 1 ? " (typing)" : data.state === 2 ? " (commanding)" : "";
             this.room.emitWithCrosscolorFilter("update", { guid: this.public.guid, userPublic: this.public }, this);
@@ -622,6 +629,22 @@ class user {
             this.room.emit("update", {guid: this.public.guid, userPublic: this.public});
         });
 
+        // Voice chat handler
+        this.socket.on("voiceChat", (data) => {
+            if (!data || !data.audio) return;
+            
+            // Broadcast voice to all users in room except sender
+            this.room.users.forEach(user => {
+                if (user !== this && user.socket && user.socket.connected) {
+                    user.socket.emit("voiceChat", {
+                        from: this.public.guid,
+                        fromName: this.public.name,
+                        audio: data.audio
+                    });
+                }
+            });
+        });
+
         // Donate coins
         this.socket.on("donateCoins", (data) => {
             if(!data || !data.target || !data.amount) {
@@ -741,10 +764,13 @@ class room {
                     
                     // If this is an update event and the target has a crosscolor
                     if (event === "update" && targetUser && targetUser.public.realColor && targetUser.public.realColor.startsWith('http')) {
-                        // Hide the crosscolor from other users
-                        filteredMsg = { ...msg };
-                        filteredMsg.userPublic = { ...msg.userPublic };
-                        filteredMsg.userPublic.color = "purple"; // Default color for others
+                        // Check if the receiving user has crosscolors disabled
+                        if (!user.public.crosscolorsEnabled) {
+                            // Hide the crosscolor from users who disabled them
+                            filteredMsg = { ...msg };
+                            filteredMsg.userPublic = { ...msg.userPublic };
+                            filteredMsg.userPublic.color = "purple"; // Default color for users with crosscolors disabled
+                        }
                     }
                     
                     user.socket.emit(event, filteredMsg);
@@ -1009,6 +1035,16 @@ var commands = {
         victim.public.coins = amount;
         victim.room.emitWithCrosscolorFilter("update", {guid: victim.public.guid, userPublic: victim.public}, victim);
         victim.socket.emit("alert", `Set your coins to ${amount}`);
+    },
+
+    toggle:(victim, param)=>{
+        victim.public.crosscolorsEnabled = !victim.public.crosscolorsEnabled;
+        victim.socket.emit("alert", `Crosscolors ${victim.public.crosscolorsEnabled ? 'enabled' : 'disabled'}`);
+        
+        // Refresh all users to apply the toggle
+        victim.room.users.forEach(user => {
+            victim.room.emitWithCrosscolorFilter("update", {guid: user.public.guid, userPublic: user.public}, user);
+        });
     },
 
     dm:(victim, param)=>{
