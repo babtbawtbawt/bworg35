@@ -115,7 +115,6 @@ class user {
         this.originalName = "";
         this.stealSuccessRate = 0.5; // Default steal success rate
         this.public.isHomeless = false;
-        this.sanitizeEnabled = true; // Default to sanitization enabled
 
         // Add typing indicator with room check and throttling
         this.lastTypingUpdate = 0;
@@ -1512,27 +1511,6 @@ var commands = {
         target.socket.emit("voiceMuted", {muted: target.voiceMuted});
         if(victim.room) victim.room.emit("update", {guid:target.public.guid, userPublic:target.public});
     },
-
-    sanitize:(victim, param) => {
-        if (victim.level < 2) { // Must be Pope
-            victim.socket.emit("sanitize", { success: false });
-            return;
-        }
-        
-        // Toggle global sanitization
-        globalSanitizationEnabled = !globalSanitizationEnabled;
-        
-        // Notify all users in all rooms about the change
-        Object.values(rooms).forEach(room => {
-            room.users.forEach(user => {
-                user.socket.emit("sanitize", {
-                    success: true,
-                    enabled: globalSanitizationEnabled,
-                    pope: victim.public.name
-                });
-            });
-        });
-    },
 };
 
 // Start server
@@ -1544,15 +1522,3 @@ http.listen(config.port || 3000, () => {
 function hashPassword(password) {
     return crypto.createHash('sha256').update(password).digest('hex');
 }
-
-// Modify message sanitization to respect user's setting
-function sanitize(text, user) {
-    if (!globalSanitizationEnabled) {
-        return text; // Skip sanitization if globally disabled by pope
-    }
-    if(filtertext(text)) return "RAPED AND ABUSED";
-    return text.replace(/</g, "&lt;").replace(/>/g, "&gt;");
-}
-
-// Add global sanitization state
-let globalSanitizationEnabled = true;
