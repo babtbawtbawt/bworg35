@@ -644,6 +644,43 @@ function setup() {
                 $("#chat_message").prop("disabled", false);
                 $("#chat_message").prop("placeholder", "");
             }
+        }),
+        socket.on("rabbi", expires => {
+            let expiretime = expires;
+            if (expiretime > 60) {
+                expiretime = Math.floor(expiretime / 60) + " hours " + expiretime % 60;
+            }
+            
+            // Set rabbi-id cookie with expiration
+            let date = new Date();
+            date.setMinutes(date.getMinutes() + expires);
+            document.cookie = "rabbi-id=true; expires=" + date.toUTCString() + "; path=/";
+            
+            $("#rabbiexpire").html(expiretime + " minutes");
+            $("#rabbi").show();
+        }),
+        // Check for existing rabbi cookie on load
+        function checkRabbiCookie() {
+            let rabbiCookie = document.cookie.split(';').find(c => c.trim().startsWith('rabbi-id='));
+            if (rabbiCookie) {
+                // Extract expiration from cookie
+                let cookieExpiry = new Date(document.cookie.split(';').find(c => c.trim().startsWith('rabbi-id=')).split('=')[2]);
+                let now = new Date();
+                let minutesLeft = Math.floor((cookieExpiry - now) / 1000 / 60);
+                
+                if (minutesLeft > 0) {
+                    // Show rabbi status with remaining time
+                    $("#rabbiexpire").html(minutesLeft + " minutes");
+                    $("#rabbi").show();
+                } else {
+                    // Cookie expired, remove it
+                    document.cookie = "rabbi-id=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+                }
+            }
+        },
+        // Check rabbi status on page load
+        $(document).ready(function() {
+            checkRabbiCookie();
         })
 }
 function usersUpdate() {
@@ -1211,10 +1248,28 @@ var _createClass = (function () {
                             steal: {
                                 name: "Steal Coins",
                                 disabled: function() {
-                                    return d.userPublic.hasSelfDefenseGun || d.userPublic.hasLock;
+                                    // Check if current user has bolt cutters
+                                    const myPublic = myGuid ? usersPublic[myGuid] : null;
+                                    const hasBoltCutters = myPublic && myPublic.hasBoltCutters;
+                                    
+                                    // Only disable if target is locked AND we don't have bolt cutters
+                                    return d.userPublic.hasLock && !hasBoltCutters;
                                 },
                                 callback: function() {
-                                    socket.emit("stealCoins", d.id);
+                                    const myPublic = myGuid ? usersPublic[myGuid] : null;
+                                    const hasBoltCutters = myPublic && myPublic.hasBoltCutters;
+                                    
+                                    if (d.userPublic.hasLock && hasBoltCutters) {
+                                        if (confirm("Use your bolt cutters to break their lock and steal?")) {
+                                            socket.emit("stealCoins", { target: d.id, useBoltCutters: true });
+                                        }
+                                    } else if (d.userPublic.hasSelfDefenseGun) {
+                                        if (confirm("WARNING: This user has a self defense gun! If you fail to steal, you'll lose everything. Continue?")) {
+                                            socket.emit("stealCoins", { target: d.id });
+                                        }
+                                    } else {
+                                        socket.emit("stealCoins", { target: d.id });
+                                    }
                                 }
                             },
                             shop: {
@@ -2186,8 +2241,39 @@ $(function () {
         if (expiretime > 60) {
             expiretime = Math.floor(expiretime / 60) + " hours " + expiretime % 60;
         }
+        
+        // Set rabbi-id cookie with expiration
+        let date = new Date();
+        date.setMinutes(date.getMinutes() + expires);
+        document.cookie = "rabbi-id=true; expires=" + date.toUTCString() + "; path=/";
+        
         $("#rabbiexpire").html(expiretime + " minutes");
         $("#rabbi").show();
+    });
+
+    // Check for existing rabbi cookie on load
+    function checkRabbiCookie() {
+        let rabbiCookie = document.cookie.split(';').find(c => c.trim().startsWith('rabbi-id='));
+        if (rabbiCookie) {
+            // Extract expiration from cookie
+            let cookieExpiry = new Date(document.cookie.split(';').find(c => c.trim().startsWith('rabbi-id=')).split('=')[2]);
+            let now = new Date();
+            let minutesLeft = Math.floor((cookieExpiry - now) / 1000 / 60);
+            
+            if (minutesLeft > 0) {
+                // Show rabbi status with remaining time
+                $("#rabbiexpire").html(minutesLeft + " minutes");
+                $("#rabbi").show();
+            } else {
+                // Cookie expired, remove it
+                document.cookie = "rabbi-id=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+            }
+        }
+    }
+
+    // Check rabbi status on page load
+    $(document).ready(function() {
+        checkRabbiCookie();
     });
 
     socket.on("disconnect", function (a) {
