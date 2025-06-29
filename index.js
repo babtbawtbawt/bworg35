@@ -549,6 +549,15 @@ class user {
             if(typeof msg !== "object" || typeof msg.text !== "string") return;
             if(this.muted) return;
 
+            // Initialize rate limit if not exists
+            if (!messageRateLimits.has(this.ip)) {
+                messageRateLimits.set(this.ip, {
+                    count: 0,
+                    lastReset: Date.now(),
+                    throttled: false
+                });
+            }
+
             // Rate limit messages
             const msgLimit = messageRateLimits.get(this.ip);
             msgLimit.count++;
