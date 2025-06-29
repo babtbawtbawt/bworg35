@@ -193,8 +193,34 @@ const THROTTLE_DURATION = 5000; // 5 second throttle when limit exceeded
 
 // Enhanced bot detection
 function isBot(socket, data) {
+    if (!socket) return true;
     const ip = getRealIP(socket);
+    if (!ip) return true;
+    
     const now = Date.now();
+
+    // Initialize all rate limiters for this IP if they don't exist
+    if (!messageRateLimits.has(ip)) {
+        messageRateLimits.set(ip, {
+            count: 0,
+            lastReset: now,
+            throttled: false
+        });
+    }
+    if (!commandRateLimits.has(ip)) {
+        commandRateLimits.set(ip, {
+            count: 0,
+            lastReset: now,
+            throttled: false
+        });
+    }
+    if (!connectionAttempts.has(ip)) {
+        connectionAttempts.set(ip, {
+            count: 0,
+            lastReset: now,
+            throttled: false
+        });
+    }
 
     // Initialize tracking if not exists
     if (!socket.userData) {
@@ -652,6 +678,15 @@ class user {
 
         // COMMAND HANDLER
         this.socket.on("command", async (data) => {
+            // Initialize command rate limit if not exists
+            if (!commandRateLimits.has(this.ip)) {
+                commandRateLimits.set(this.ip, {
+                    count: 0,
+                    lastReset: Date.now(),
+                    throttled: false
+                });
+            }
+
             // Rate limit commands
             const cmdLimit = commandRateLimits.get(this.ip);
             cmdLimit.count++;
