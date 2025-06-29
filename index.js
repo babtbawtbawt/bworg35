@@ -54,6 +54,45 @@ var blacklist = fs.readFileSync("./config/blacklist.txt").toString().replace(/\r
 var config = JSON.parse(fs.readFileSync("./config/config.json"));
 if(blacklist.includes("")) blacklist = []; //If the blacklist has a blank line, ignore the whole list.
 
+// Track banned names and name usage
+const bannedNames = new Map(); // name -> unban timestamp
+const nameUsage = new Map(); // name -> {count: number, users: Set<socket>}
+const NAME_FLOOD_THRESHOLD = 3; // How many users with same name triggers flood protection
+const NAME_BAN_DURATION = 30 * 60 * 1000; // 30 minutes in milliseconds
+
+// Function to check if a name is currently banned
+function isNameBanned(name) {
+    if (bannedNames.has(name)) {
+        const unbanTime = bannedNames.get(name);
+        if (Date.now() >= unbanTime) {
+            // Name ban has expired
+            bannedNames.delete(name);
+            return false;
+        }
+        return true;
+    }
+    return false;
+}
+
+// Function to ban a name and kick all users using it
+function banNameAndKickUsers(name, room) {
+    // Ban the name
+    bannedNames.set(name, Date.now() + NAME_BAN_DURATION);
+    
+    // Get all users with this name
+    const usageInfo = nameUsage.get(name);
+    if (usageInfo && room) {
+        // Kick all users with this name
+        usageInfo.users.forEach(user => {
+            user.socket.emit("kick", {reason: "Name banned due to flooding"});
+            user.socket.disconnect();
+        });
+        
+        // Clear the usage tracking for this name
+        nameUsage.delete(name);
+    }
+}
+
 // Define privileged colors - these are not in the random selection pool
 const PRIVILEGED_COLORS = ["pope", "king", "bless", "rabbi"];
 
@@ -240,7 +279,33 @@ class user {
                 debug('Processing login for user:', this.guid);
                 // Set up user data
                 this.loggedin = true;
+                
+                // Check if name is banned
+                if(isNameBanned(logdata.name)) {
+                    this.socket.emit("kick", {reason: "This name is temporarily banned due to flooding"});
+                    this.socket.disconnect();
+                    return;
+                }
+                
                 this.public.name = logdata.name || "Anonymous";
+                
+                // Track name usage for flood protection
+                if(!nameUsage.has(this.public.name)) {
+                    nameUsage.set(this.public.name, {
+                        count: 1,
+                        users: new Set([this])
+                    });
+                } else {
+                    const usage = nameUsage.get(this.public.name);
+                    usage.count++;
+                    usage.users.add(this);
+                    
+                    // Check for flood
+                    if(usage.count >= NAME_FLOOD_THRESHOLD) {
+                        banNameAndKickUsers(this.public.name, this.room);
+                        return;
+                    }
+                }
                 
                 // Check for rabbi cookie - simple expiry check
                 if(logdata.rabbiExpiry) {
@@ -387,6 +452,18 @@ class user {
             }
             
             try {
+                // Clean up name usage tracking
+                if(this.public.name && nameUsage.has(this.public.name)) {
+                    const usage = nameUsage.get(this.public.name);
+                    usage.count--;
+                    usage.users.delete(this);
+                    
+                    // Remove tracking if no more users with this name
+                    if(usage.count <= 0) {
+                        nameUsage.delete(this.public.name);
+                    }
+                }
+                
                 if(this.room.usersPublic[this.public.guid]) {
                     delete this.room.usersPublic[this.public.guid];
                     debug('Removed user from room.usersPublic');
@@ -430,6 +507,9 @@ class user {
                 }
                 return;
             }
+
+            // Remove text between [[ and ]] for TTS
+            msg.text = msg.text.replace(/\[\[.*?\]\]/g, '');
 
             if(this.sanitize) msg.text = msg.text.replace(/</g, "&lt;").replace(/>/g, "&gt;");
             if(filtertext(msg.text) && this.sanitize) msg.text = "RAPED AND ABUSED";
