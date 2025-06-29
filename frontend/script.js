@@ -33,6 +33,10 @@ const userinfo = {
     room: ""
 }
 
+// Voice muting functionality
+let mutedUsers = new Set();
+let currentAudioElements = {};
+
 document.cookie.split("; ").forEach((cookieitem) => {
     cookieobject[cookieitem.substring(0, cookieitem.indexOf("="))] = decodeURIComponent(cookieitem.substring(cookieitem.indexOf("=") + 1, cookieitem.length))
 })
@@ -362,8 +366,17 @@ function setup() {
         // Voice chat playback
         socket.on("voiceChat", function(data) {
             if (data && data.audio && data.fromName) {
+                // Check if user is muted
+                if (mutedUsers && mutedUsers.has(data.from)) {
+                    console.log(`Voice from ${data.fromName} blocked (user is muted)`);
+                    return;
+                }
+                
                 console.log(`Playing voice from ${data.fromName}`);
                 const audio = new Audio(data.audio);
+                
+                // Track this audio element
+                currentAudioElements[data.from] = audio;
                 
                 // Show speaking indicator for the sender
                 if (bonzis[data.from]) {
@@ -373,11 +386,15 @@ function setup() {
                         bonzis[data.from].updateName();
                     }
                     
-                    // Remove speaking indicator after audio ends
+                    // Remove speaking indicator and audio tracking after audio ends
                     audio.addEventListener('ended', () => {
                         if (bonzis[data.from] && bonzis[data.from].userPublic.name.includes("(speaking)")) {
                             bonzis[data.from].userPublic.name = bonzis[data.from].userPublic.name.replace(" (speaking)", "");
                             bonzis[data.from].updateName();
+                        }
+                        // Remove from tracking
+                        if (currentAudioElements[data.from] === audio) {
+                            delete currentAudioElements[data.from];
                         }
                     });
                     
@@ -387,11 +404,19 @@ function setup() {
                             bonzis[data.from].userPublic.name = bonzis[data.from].userPublic.name.replace(" (speaking)", "");
                             bonzis[data.from].updateName();
                         }
+                        // Remove from tracking
+                        if (currentAudioElements[data.from] === audio) {
+                            delete currentAudioElements[data.from];
+                        }
                     }, data.duration || 5000);
                 }
                 
                 audio.play().catch(err => {
                     console.log("Error playing voice:", err);
+                    // Remove from tracking on error
+                    if (currentAudioElements[data.from] === audio) {
+                        delete currentAudioElements[data.from];
+                    }
                 });
             }
         }),
@@ -793,6 +818,37 @@ var _createClass = (function () {
                                 name: "Hey, NAME!",
                                 callback: function () {
                                     socket.emit("talk", { text: "Hey, " + d.userPublic.name + "!" })
+                                }
+                            },
+                            mute: {
+                                name: function() {
+                                    return (mutedUsers && mutedUsers.has(d.id)) ? "UNMUTE" : "MUTE";
+                                },
+                                callback: function () {
+                                    if (!mutedUsers) mutedUsers = new Set();
+                                    
+                                    if (mutedUsers.has(d.id)) {
+                                        // Unmute user
+                                        mutedUsers.delete(d.id);
+                                        console.log(`Unmuted ${d.userPublic.name}`);
+                                    } else {
+                                        // Mute user and interrupt any currently playing audio
+                                        mutedUsers.add(d.id);
+                                        console.log(`Muted ${d.userPublic.name}`);
+                                        
+                                        // Stop any currently playing audio from this user
+                                        if (currentAudioElements && currentAudioElements[d.id]) {
+                                            currentAudioElements[d.id].pause();
+                                            currentAudioElements[d.id].currentTime = 0;
+                                            delete currentAudioElements[d.id];
+                                        }
+                                        
+                                        // Remove speaking indicator if active
+                                        if (bonzis[d.id] && bonzis[d.id].userPublic.name.includes("(speaking)")) {
+                                            bonzis[d.id].userPublic.name = bonzis[d.id].userPublic.name.replace(" (speaking)", "");
+                                            bonzis[d.id].updateName();
+                                        }
+                                    }
                                 }
                             },
                             insult: {

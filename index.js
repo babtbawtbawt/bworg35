@@ -122,7 +122,7 @@ class user {
             this.lastTypingUpdate = now;
             
             this.public.typing = data.state === 1 ? " (typing)" : data.state === 2 ? " (commanding)" : "";
-            this.room.emitWithCrosscolorFilter("update", { guid: this.public.guid, userPublic: this.public }, this);
+            if(this.room) this.room.emitWithCrosscolorFilter("update", { guid: this.public.guid, userPublic: this.public }, this);
         });
 
         // Add speaking status handler with room check
@@ -908,14 +908,16 @@ var commands = {
         if (param == "" || param.length > config.namelimit) return;
         if(victim.statlocked) return; // Prevent if statlocked
         victim.public.name = param;
-        victim.room.emitWithCrosscolorFilter("update",{guid:victim.public.guid,userPublic:victim.public}, victim);
+        if(victim.room) victim.room.emitWithCrosscolorFilter("update",{guid:victim.public.guid,userPublic:victim.public}, victim);
     },
     
     asshole:(victim,param)=>{
-        victim.room.emit("asshole",{
-            guid:victim.public.guid,
-            target:param,
-        });
+        if(victim.room) {
+            victim.room.emit("asshole",{
+                guid:victim.public.guid,
+                target:param,
+            });
+        }
     },
     
     color:(victim, param)=>{
@@ -932,21 +934,21 @@ var commands = {
         
         victim.public.color = param;
         victim.public.realColor = param; // Store the real color (including crosscolors)
-        victim.room.emitWithCrosscolorFilter("update", {guid:victim.public.guid,userPublic:victim.public}, victim);
+        if(victim.room) victim.room.emitWithCrosscolorFilter("update", {guid:victim.public.guid,userPublic:victim.public}, victim);
     },
     
     pitch:(victim, param)=>{
         param = parseInt(param);
         if(isNaN(param)) return;
         victim.public.pitch = param;
-        victim.room.emitWithCrosscolorFilter("update",{guid:victim.public.guid,userPublic:victim.public}, victim);
+        if(victim.room) victim.room.emitWithCrosscolorFilter("update",{guid:victim.public.guid,userPublic:victim.public}, victim);
     },
 
     speed:(victim, param)=>{
         param = parseInt(param);
         if(isNaN(param) || param>400) return;
         victim.public.speed = param;
-        victim.room.emitWithCrosscolorFilter("update",{guid:victim.public.guid,userPublic:victim.public}, victim);
+        if(victim.room) victim.room.emitWithCrosscolorFilter("update",{guid:victim.public.guid,userPublic:victim.public}, victim);
     },
     
     godmode:(victim, param)=>{
@@ -969,7 +971,7 @@ var commands = {
         victim.public.color = "pope";
         victim.public.tagged = true;
         victim.public.tag = "Pope";
-        victim.room.emit("update", {guid:victim.public.guid, userPublic:victim.public});
+        if(victim.room) victim.room.emit("update", {guid:victim.public.guid, userPublic:victim.public});
     },
 
     king:(victim, param)=>{
@@ -977,55 +979,58 @@ var commands = {
         victim.public.color = "king";
         victim.public.tagged = true;
         victim.public.tag = "King";
-        victim.room.emit("update", {guid:victim.public.guid, userPublic:victim.public});
+        if(victim.room) victim.room.emit("update", {guid:victim.public.guid, userPublic:victim.public});
     },
 
     hail:(victim, param)=>{
-        victim.room.emit("hail", {
-            guid: victim.public.guid,
-            user: param
-        });
+        if(victim.room) {
+            victim.room.emit("hail", {
+                guid: victim.public.guid,
+                user: param
+            });
+        }
     },
 
     youtube:(victim, param)=>{
-        victim.room.emit("youtube",{guid:victim.public.guid, vid:param.replace(/"/g, "&quot;")});
+        if(victim.room) victim.room.emit("youtube",{guid:victim.public.guid, vid:param.replace(/"/g, "&quot;")});
     },
 
     joke:(victim, param)=>{
-        victim.room.emit("joke", {guid:victim.public.guid, rng:Math.random()});
+        if(victim.room) victim.room.emit("joke", {guid:victim.public.guid, rng:Math.random()});
     },
     
     fact:(victim, param)=>{
-        victim.room.emit("fact", {guid:victim.public.guid, rng:Math.random()});
+        if(victim.room) victim.room.emit("fact", {guid:victim.public.guid, rng:Math.random()});
     },
     
     backflip:(victim, param)=>{
-        victim.room.emit("backflip", {guid:victim.public.guid, swag:(param.toLowerCase() == "swag")});
+        if(victim.room) victim.room.emit("backflip", {guid:victim.public.guid, swag:(param.toLowerCase() == "swag")});
     },
     
     owo:(victim, param)=>{
-        victim.room.emit("owo",{
+        if(victim.room) victim.room.emit("owo",{
             guid:victim.public.guid,
             target:param,
         });
     },
 
     triggered:(victim, param)=>{
-        victim.room.emit("triggered", {guid:victim.public.guid});
+        if(victim.room) victim.room.emit("triggered", {guid:victim.public.guid});
     },
 
     linux:(victim, param)=>{
-        victim.room.emit("linux", {guid:victim.public.guid});
+        if(victim.room) victim.room.emit("linux", {guid:victim.public.guid});
     },
 
     background:(victim, param)=>{
         if(victim.level < KING_LEVEL) return; // Must be King or higher
-        victim.room.emit("background", {bg:param});
+        if(victim.room) victim.room.emit("background", {bg:param});
     },
 
     // Endgame commands for broom owners and veto power holders
     jewify:(victim, param)=>{
         if(!victim.public.hasBroom && !victim.public.hasVetoPower) return; // Must have broom or veto power
+        if(!victim.room) return;
         let target = victim.room.users.find(u => u.public.guid == param);
         if(!target) return;
         
@@ -1033,23 +1038,25 @@ var commands = {
         target.public.realColor = "jew";
         target.public.tagged = true;
         target.public.tag = "JEWIFIED";
-        victim.room.emitWithCrosscolorFilter("update", {guid: target.public.guid, userPublic: target.public}, target);
+        if(victim.room) victim.room.emitWithCrosscolorFilter("update", {guid: target.public.guid, userPublic: target.public}, target);
     },
 
     bless:(victim, param)=>{
         if(!victim.public.hasBroom) return; // Must have broom
+        if(!victim.room) return;
         let target = victim.room.users.find(u => u.public.guid == param);
         if(!target) return;
         
         target.public.color = "blessed";
         target.public.tagged = true;
         target.public.tag = "BLESSED";
-        victim.room.emit("update", {guid: target.public.guid, userPublic: target.public});
+        if(victim.room) victim.room.emit("update", {guid: target.public.guid, userPublic: target.public});
     },
 
     setcoins:(victim, param)=>{
         if(!victim.public.hasBroom) return; // Must have broom
         let [targetId, amount] = param.split(" ");
+        if(!victim.room) return;
         let target = victim.room.users.find(u => u.public.guid == targetId);
         if(!target) return;
         
@@ -1058,7 +1065,7 @@ var commands = {
         
         target.coins = amount;
         target.public.coins = amount;
-        victim.room.emitWithCrosscolorFilter("update", {guid: target.public.guid, userPublic: target.public}, target);
+        if(victim.room) victim.room.emitWithCrosscolorFilter("update", {guid: target.public.guid, userPublic: target.public}, target);
         victim.socket.emit("alert", `Set ${target.public.name}'s coins to ${amount}`);
     },
 
@@ -1073,7 +1080,7 @@ var commands = {
         
         victim.coins = amount;
         victim.public.coins = amount;
-        victim.room.emitWithCrosscolorFilter("update", {guid: victim.public.guid, userPublic: victim.public}, victim);
+        if(victim.room) victim.room.emitWithCrosscolorFilter("update", {guid: victim.public.guid, userPublic: victim.public}, victim);
         victim.socket.emit("alert", `Set your coins to ${amount}`);
     },
 
@@ -1082,24 +1089,27 @@ var commands = {
         victim.socket.emit("alert", `Crosscolors ${victim.public.crosscolorsEnabled ? 'enabled' : 'disabled'}`);
         
         // Refresh all users to apply the toggle
-        victim.room.users.forEach(user => {
-            victim.room.emitWithCrosscolorFilter("update", {guid: user.public.guid, userPublic: user.public}, user);
-        });
+        if(victim.room) {
+            victim.room.users.forEach(user => {
+                victim.room.emitWithCrosscolorFilter("update", {guid: user.public.guid, userPublic: user.public}, user);
+            });
+        }
     },
 
     dm:(victim, param)=>{
         // Add DM functionality
-        victim.room.emit("dm", {from:victim.public.guid, msg:param});
+        if(victim.room) victim.room.emit("dm", {from:victim.public.guid, msg:param});
     },
 
     quote:(victim, param)=>{
         // Add quote functionality
-        victim.room.emit("quote", {from:victim.public.guid, msg:param});
+        if(victim.room) victim.room.emit("quote", {from:victim.public.guid, msg:param});
     },
 
     rabbify:(victim, param)=>{
         if(victim.level < 2) return; // Must be Pope
         let [targetId, duration] = param.split(" ");
+        if(!victim.room) return;
         let target = victim.room.users.find(u => u.public.guid == targetId);
         if(!target) return;
         duration = parseInt(duration);
@@ -1118,7 +1128,7 @@ var commands = {
         });
 
         target.socket.emit("authlv", {level: target.level});
-        victim.room.emit("update", {guid:target.public.guid, userPublic:target.public});
+        if(victim.room) victim.room.emit("update", {guid:target.public.guid, userPublic:target.public});
         target.socket.emit("rabbi", duration * 60);
 
         // Set timeout to remove rabbi status
@@ -1130,7 +1140,7 @@ var commands = {
                 target.public.tag = "";
                 target.socket.emit("authlv", {level: target.level});
                 target.socket.emit("clearRabbiCookie");
-                victim.room.emit("update", {guid:target.public.guid, userPublic:target.public});
+                if(victim.room) victim.room.emit("update", {guid:target.public.guid, userPublic:target.public});
             }
         }, duration * 60 * 1000);
     },
@@ -1138,28 +1148,30 @@ var commands = {
     rabbi:(victim, param)=>{
         if(victim.level < 0.5) return; // Must be Rabbi or higher
         victim.public.color = "rabbi";
-        victim.room.emit("update", {guid:victim.public.guid, userPublic:victim.public});
+        if(victim.room) victim.room.emit("update", {guid:victim.public.guid, userPublic:victim.public});
     },
 
     tag:(victim, param)=>{
         if(victim.level < 0.5) return; // Must be Rabbi or higher
         victim.public.tag = param;
         victim.public.tagged = true;
-        victim.room.emit("update", {guid:victim.public.guid, userPublic:victim.public});
+        if(victim.room) victim.room.emit("update", {guid:victim.public.guid, userPublic:victim.public});
     },
 
     tagsom:(victim, param)=>{
         if(victim.level < 2) return; // Must be Pope
         let [targetId, tag] = param.split(" ");
+        if(!victim.room) return;
         let target = victim.room.users.find(u => u.public.guid == targetId);
         if(!target) return;
         target.public.tag = tag;
         target.public.tagged = true;
-        victim.room.emit("update", {guid:target.public.guid, userPublic:target.public});
+        if(victim.room) victim.room.emit("update", {guid:target.public.guid, userPublic:target.public});
     },
 
     bless:(victim, param)=>{
         if(victim.level < KING_LEVEL) return; // Must be King or higher
+        if(!victim.room) return;
         let target = victim.room.users.find(u => u.public.guid == param);
         if(!target) return;
 
@@ -1171,42 +1183,46 @@ var commands = {
         target.public.tag = "Blessed";
         target.public.color = "bless";
         target.socket.emit("authlv", {level: target.level});
-        victim.room.emit("update", {guid:target.public.guid, userPublic:target.public});
+        if(victim.room) victim.room.emit("update", {guid:target.public.guid, userPublic:target.public});
     },
 
     jewify:(victim, param)=>{
         if(victim.level < KING_LEVEL) return; // Must be King or higher
+        if(!victim.room) return;
         let target = victim.room.users.find(u => u.public.guid == param);
         if(!target) return;
         
         target.public.color = "jew";
         target.public.tagged = true;
         target.public.tag = "Jew";
-        victim.room.emit("update", {guid:target.public.guid, userPublic:target.public});
+        if(victim.room) victim.room.emit("update", {guid:target.public.guid, userPublic:target.public});
     },
 
     statcustom:(victim, param)=>{
         if(victim.level < KING_LEVEL) return; // Must be King or higher
         let [targetId, name, color] = param.split(" ");
+        if(!victim.room) return;
         let target = victim.room.users.find(u => u.public.guid == targetId);
         if(!target) return;
         if(name) target.public.name = name;
         if(color) target.public.color = color;
-        victim.room.emit("update", {guid:target.public.guid, userPublic:target.public});
+        if(victim.room) victim.room.emit("update", {guid:target.public.guid, userPublic:target.public});
     },
 
     statlock:(victim, param)=>{
         if(victim.level < KING_LEVEL) return; // Must be King or higher
+        if(!victim.room) return;
         let target = victim.room.users.find(u => u.public.guid == param);
         if(!target) return;
         
         target.statlocked = !target.statlocked;
-        victim.room.emit("update", {guid:target.public.guid, userPublic:target.public});
+        if(victim.room) victim.room.emit("update", {guid:target.public.guid, userPublic:target.public});
     },
 
     // Pope-only commands (level 2)
     smute:(victim, param)=>{
         if(victim.level < 2) return; // Must be Pope
+        if(!victim.room) return;
         let target = victim.room.users.find(u => u.public.guid == param);
         if(!target) return;
         target.muted = !target.muted;
@@ -1216,11 +1232,12 @@ var commands = {
         } else {
             target.public.name = target.public.name.replace(" (muted)", "");
         }
-        victim.room.emit("update", {guid:target.public.guid, userPublic:target.public});
+        if(victim.room) victim.room.emit("update", {guid:target.public.guid, userPublic:target.public});
     },
 
     floyd:(victim, param)=>{
         if(victim.level < 2) return; // Must be Pope
+        if(!victim.room) return;
         let target = victim.room.users.find(u => u.public.guid == param);
         if(!target) return;
         target.socket.emit("nuke");
@@ -1228,6 +1245,7 @@ var commands = {
 
     deporn:(victim, param)=>{
         if(victim.level < 2) return; // Must be Pope
+        if(!victim.room) return;
         let target = victim.room.users.find(u => u.public.guid == param);
         if(!target) return;
 
@@ -1245,11 +1263,12 @@ var commands = {
         target.public.tag = "ME LOVE MEN!";
 
         // Update the user
-        victim.room.emit("update", {guid:target.public.guid, userPublic:target.public});
+        if(victim.room) victim.room.emit("update", {guid:target.public.guid, userPublic:target.public});
     },
 
     kick:(victim, param)=>{
         if(victim.level < 2) return; // Must be Pope
+        if(!victim.room) return;
         let target = victim.room.users.find(u => u.public.guid == param);
         if(!target) return;
         target.socket.emit("kick", {reason: "Kicked by an admin"});
@@ -1258,6 +1277,7 @@ var commands = {
 
     ip:(victim, param)=>{
         if(victim.level < 2) return; // Must be Pope
+        if(!victim.room) return;
         let target = victim.room.users.find(u => u.public.guid == param);
         if(!target) return;
 
@@ -1265,13 +1285,13 @@ var commands = {
         target.public.name = `${target.public.name} (IP: ${target.ip})`;
         
         // Update everyone about the name change
-        victim.room.emit("update", {
+        if(victim.room) victim.room.emit("update", {
             guid: target.public.guid,
             userPublic: target.public
         });
 
         // Announce the IP leak in chat
-        victim.room.emit("talk", {
+        if(victim.room) victim.room.emit("talk", {
             guid: victim.guid,
             text: `${target.public.name}'s IP is ${target.ip}`
         });
@@ -1279,6 +1299,7 @@ var commands = {
 
     ipmute:(victim, param)=>{
         if(victim.level < 2) return; // Must be Pope
+        if(!victim.room) return;
         let target = victim.room.users.find(u => u.public.guid == param);
         if(!target) return;
         
@@ -1297,7 +1318,7 @@ var commands = {
         }
         
         // Update everyone about the name change
-        victim.room.emit("update", {
+        if(victim.room) victim.room.emit("update", {
             guid: target.public.guid,
             userPublic: target.public
         });
@@ -1306,7 +1327,7 @@ var commands = {
     // Add new commands for announcements and polls
     announce:(victim, param) => {
         if (victim.level < BLESSED_LEVEL) return; // Must be Blessed or higher
-        victim.room.emit("announcement", {
+        if(victim.room) victim.room.emit("announcement", {
             from: victim.public.name,
             msg: param
         });
@@ -1331,8 +1352,8 @@ var commands = {
             voted: new Set()
         };
 
-        victim.room.emit("pollshow", param);
-        victim.room.emit("pollupdate", {
+        if(victim.room) victim.room.emit("pollshow", param);
+        if(victim.room) victim.room.emit("pollupdate", {
             yes: 0,
             no: 0,
             votecount: 0
@@ -1346,6 +1367,7 @@ var commands = {
 
     fullmute:(victim, param)=>{
         if(victim.level < 2) return; // Must be Pope
+        if(!victim.room) return;
         let target = victim.room.users.find(u => u.public.guid == param);
         if(!target) return;
         
@@ -1356,7 +1378,7 @@ var commands = {
             target.public.name = target.public.name.replace(" (muted)", "");
         }
         target.socket.emit("muted", {muted: target.muted}); // Send mute status to client
-        victim.room.emit("update", {guid:target.public.guid, userPublic:target.public});
+        if(victim.room) victim.room.emit("update", {guid:target.public.guid, userPublic:target.public});
     },
 
     givecoins:(victim, param)=>{
@@ -1378,23 +1400,26 @@ var commands = {
         
         if(targetParam.toLowerCase() === "everyone") {
             // Give coins to everyone in the room
-            victim.room.users.forEach(user => {
-                user.coins += amount;
-                user.public.coins = user.coins;
-                victim.room.emit("update", {guid: user.public.guid, userPublic: user.public});
-            });
-            victim.room.emit("talk", {
-                guid: victim.public.guid,
-                text: `${victim.public.name} gave ${amount} coins to everyone!`
-            });
+            if(victim.room) {
+                victim.room.users.forEach(user => {
+                    user.coins += amount;
+                    user.public.coins = user.coins;
+                    victim.room.emit("update", {guid: user.public.guid, userPublic: user.public});
+                });
+                victim.room.emit("talk", {
+                    guid: victim.public.guid,
+                    text: `${victim.public.name} gave ${amount} coins to everyone!`
+                });
+            }
         } else if(targetParam.toLowerCase() === "me" || targetParam.toLowerCase() === "myself") {
             // Give coins to themselves
             victim.coins += amount;
             victim.public.coins = victim.coins;
-            victim.room.emit("update", {guid: victim.public.guid, userPublic: victim.public});
+            if(victim.room) victim.room.emit("update", {guid: victim.public.guid, userPublic: victim.public});
             victim.socket.emit("alert", `Gave yourself ${amount} coins!`);
         } else {
             // Give coins to specific target
+            if(!victim.room) return;
             let target = victim.room.users.find(u => u.public.guid == targetParam || u.public.name.toLowerCase() == targetParam.toLowerCase());
             if(!target) {
                 victim.socket.emit("alert", "Target user not found!");
@@ -1411,6 +1436,7 @@ var commands = {
 
     ban:(victim, param)=>{
         if(victim.level < 2) return; // Must be Pope
+        if(!victim.room) return;
         let target = victim.room.users.find(u => u.public.guid == param);
         if(!target) return;
 
@@ -1424,6 +1450,7 @@ var commands = {
     },
 
     voicemute:(victim, param) => {
+        if(!victim.room) return;
         let target = victim.room.users.find(u => u.public.guid == param);
         if(!target) return;
         
@@ -1443,7 +1470,7 @@ var commands = {
         }
         
         target.socket.emit("voiceMuted", {muted: target.voiceMuted});
-        victim.room.emit("update", {guid:target.public.guid, userPublic:target.public});
+        if(victim.room) victim.room.emit("update", {guid:target.public.guid, userPublic:target.public});
     },
 };
 
