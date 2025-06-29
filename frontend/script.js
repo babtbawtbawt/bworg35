@@ -364,6 +364,32 @@ function setup() {
             if (data && data.audio && data.fromName) {
                 console.log(`Playing voice from ${data.fromName}`);
                 const audio = new Audio(data.audio);
+                
+                // Show speaking indicator for the sender
+                if (bonzis[data.from]) {
+                    const originalName = bonzis[data.from].userPublic.name;
+                    if (!originalName.includes("(speaking)")) {
+                        bonzis[data.from].userPublic.name += " (speaking)";
+                        bonzis[data.from].updateName();
+                    }
+                    
+                    // Remove speaking indicator after audio ends
+                    audio.addEventListener('ended', () => {
+                        if (bonzis[data.from] && bonzis[data.from].userPublic.name.includes("(speaking)")) {
+                            bonzis[data.from].userPublic.name = bonzis[data.from].userPublic.name.replace(" (speaking)", "");
+                            bonzis[data.from].updateName();
+                        }
+                    });
+                    
+                    // Fallback timeout in case 'ended' event doesn't fire
+                    setTimeout(() => {
+                        if (bonzis[data.from] && bonzis[data.from].userPublic.name.includes("(speaking)")) {
+                            bonzis[data.from].userPublic.name = bonzis[data.from].userPublic.name.replace(" (speaking)", "");
+                            bonzis[data.from].updateName();
+                        }
+                    }, data.duration || 5000);
+                }
+                
                 audio.play().catch(err => {
                     console.log("Error playing voice:", err);
                 });
@@ -2174,6 +2200,8 @@ function startVoiceRecording() {
         if (!voiceChat.audioStream) return;
         
         voiceChat.isRecording = true;
+        voiceChat.recordingStartTime = Date.now(); // Track recording start time
+        
         // Use lower quality settings to reduce lag
         const options = {
             mimeType: 'audio/webm;codecs=opus',
@@ -2211,7 +2239,11 @@ function startVoiceRecording() {
                 reader.onload = () => {
                     try {
                         const audioData = reader.result;
-                        socket.emit("voiceChat", { audio: audioData });
+                        const duration = Date.now() - voiceChat.recordingStartTime; // Calculate recording duration
+                        socket.emit("voiceChat", { 
+                            audio: audioData,
+                            duration: Math.min(duration + 500, 10000) // Add 500ms buffer, max 10 seconds
+                        });
                     } catch (error) {
                         console.error("Error sending voice data:", error);
                     }

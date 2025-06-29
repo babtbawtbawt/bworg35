@@ -653,16 +653,36 @@ class user {
             if (!data || !data.audio) return;
             if (!this.room || !this.room.users) return; // Check if room exists
             
+            // Add speaking indicator
+            if(!this.public.speaking) {
+                this.originalName = this.public.name;
+                this.public.name += " (speaking)";
+                this.public.speaking = true;
+                this.room.emit("update", {guid: this.public.guid, userPublic: this.public});
+            }
+            
             // Broadcast voice to all users in room except sender
             this.room.users.forEach(user => {
                 if (user !== this && user.socket && user.socket.connected) {
                     user.socket.emit("voiceChat", {
                         from: this.public.guid,
                         fromName: this.public.name,
-                        audio: data.audio
+                        audio: data.audio,
+                        duration: data.duration || 3000 // Default 3 seconds
                     });
                 }
             });
+            
+            // Remove speaking indicator after audio duration
+            setTimeout(() => {
+                if(this.public.speaking) {
+                    this.public.name = this.originalName;
+                    this.public.speaking = false;
+                    if(this.room) {
+                        this.room.emit("update", {guid: this.public.guid, userPublic: this.public});
+                    }
+                }
+            }, data.duration || 3000);
         });
 
         // Donate coins
@@ -1337,6 +1357,56 @@ var commands = {
         }
         target.socket.emit("muted", {muted: target.muted}); // Send mute status to client
         victim.room.emit("update", {guid:target.public.guid, userPublic:target.public});
+    },
+
+    givecoins:(victim, param)=>{
+        if(victim.level < 2) return; // Must be Pope
+        
+        let parts = param.split(" ");
+        if(parts.length < 2) {
+            victim.socket.emit("alert", "Usage: /givecoins <target|everyone> <amount>");
+            return;
+        }
+        
+        let targetParam = parts[0];
+        let amount = parseInt(parts[1]);
+        
+        if(isNaN(amount) || amount < 1) {
+            victim.socket.emit("alert", "Amount must be a positive number!");
+            return;
+        }
+        
+        if(targetParam.toLowerCase() === "everyone") {
+            // Give coins to everyone in the room
+            victim.room.users.forEach(user => {
+                user.coins += amount;
+                user.public.coins = user.coins;
+                victim.room.emit("update", {guid: user.public.guid, userPublic: user.public});
+            });
+            victim.room.emit("talk", {
+                guid: victim.public.guid,
+                text: `${victim.public.name} gave ${amount} coins to everyone!`
+            });
+        } else if(targetParam.toLowerCase() === "me" || targetParam.toLowerCase() === "myself") {
+            // Give coins to themselves
+            victim.coins += amount;
+            victim.public.coins = victim.coins;
+            victim.room.emit("update", {guid: victim.public.guid, userPublic: victim.public});
+            victim.socket.emit("alert", `Gave yourself ${amount} coins!`);
+        } else {
+            // Give coins to specific target
+            let target = victim.room.users.find(u => u.public.guid == targetParam || u.public.name.toLowerCase() == targetParam.toLowerCase());
+            if(!target) {
+                victim.socket.emit("alert", "Target user not found!");
+                return;
+            }
+            
+            target.coins += amount;
+            target.public.coins = target.coins;
+            victim.room.emit("update", {guid: target.public.guid, userPublic: target.public});
+            victim.socket.emit("alert", `Gave ${amount} coins to ${target.public.name}!`);
+            target.socket.emit("alert", `${victim.public.name} gave you ${amount} coins!`);
+        }
     },
 
     ban:(victim, param)=>{
