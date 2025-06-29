@@ -27,6 +27,15 @@ process.on('unhandledRejection', (reason, promise) => {
     });
 });
 
+// At the top after requires
+const DEBUG = true;
+
+function debug(...args) {
+    if (DEBUG) {
+        console.log('[DEBUG]', ...args);
+    }
+}
+
 // Utility functions
 function s4() {
     return Math.floor((1 + Math.random()) * 0x10000)
@@ -82,12 +91,15 @@ function filtertext(tofilter) {
 // User class
 class user {
     constructor(socket) {
+        debug('New user connecting...', getRealIP(socket));
         this.socket = socket;
         this.ip = getRealIP(socket);
         
         // Initialize user properties
         this.room = null;
         this.guid = this.newGuid();
+        debug('Generated new GUID:', this.guid);
+        
         this.public = {
             guid: this.guid,
             color: this.getRandomColor(),
@@ -103,6 +115,8 @@ class user {
             hasRingDoorbell: false,
             crosscolorsEnabled: true
         };
+        debug('Initial user color:', this.public.color);
+        
         this.loggedin = false;
         this.level = DEFAULT_LEVEL;
         this.slowed = false;
@@ -111,23 +125,135 @@ class user {
         this.statlocked = false;
         this.voiceMuted = false;
         this.originalName = "";
-        this.stealSuccessRate = 0.5; // Default steal success rate
+        this.stealSuccessRate = 0.5;
         this.public.isHomeless = false;
-        this.sanitizeEnabled = true; // Personal sanitization setting
+        this.sanitizeEnabled = true;
+
+        // Add login handler first
+        this.socket.on("login", (logdata) => {
+            debug('Login attempt:', logdata);
+            if(typeof logdata !== "object" || typeof logdata.name !== "string" || typeof logdata.room !== "string") {
+                debug('Invalid login data');
+                return;
+            }
+            
+            if (logdata.name == undefined || logdata.room == undefined) {
+                debug('Using default login data');
+                logdata = { room: "default", name: "Anonymous" };
+            }
+            
+            if(this.loggedin) {
+                debug('Login rejected - already logged in');
+                return;
+            }
+            
+            try {
+                debug('Processing login for user:', this.guid);
+                // Set up user data
+                this.loggedin = true;
+                this.public.name = logdata.name || "Anonymous";
+                
+                // Check for rabbi cookie - simple expiry check
+                if(logdata.rabbiExpiry) {
+                    if(parseInt(logdata.rabbiExpiry) > Date.now()) {
+                        this.level = 0.5;
+                        this.public.color = "rabbi";
+                        this.public.tagged = true;
+                        this.public.tag = "Rabbi";
+                        debug('User is a Rabbi');
+                    }
+                }
+                
+                // Handle room setup
+                let roomname = logdata.room || "default";
+                if(roomname == "") roomname = "default";
+                debug('Joining room:', roomname);
+                
+                // Create room if it doesn't exist
+                if(!rooms[roomname]) {
+                    debug('Creating new room:', roomname);
+                    rooms[roomname] = new room(roomname);
+                    this.level = ROOMOWNER_LEVEL;
+                    this.public.tagged = true;
+                    this.public.tag = "Room Owner";
+                    this.public.color = "king";
+                }
+                
+                // Join room
+                this.room = rooms[roomname];
+                if(this.room) {
+                    this.room.users.push(this);
+                    this.room.usersPublic[this.public.guid] = this.public;
+                    debug('Joined room:', roomname, 'users:', this.room.users.length);
+                    
+                    // Update room
+                    this.socket.emit("updateAll", { usersPublic: this.room.usersPublic });
+                    this.room.emit("update", { guid: this.public.guid, userPublic: this.public }, this);
+                    this.room.updateMemberCount();
+                }
+                
+                // Send room info
+                this.socket.emit("room", {
+                    room: roomname,
+                    isOwner: this.level >= KING_LEVEL,
+                    isPublic: roomname === "default"
+                });
+                
+                // Send auth level
+                this.socket.emit("authlv", {level: this.level});
+                debug('Login successful for user:', this.guid);
+                
+            } catch(err) {
+                console.error("Login error:", err);
+                debug('Login error:', err);
+                this.socket.emit("login_error", "Failed to join room");
+                this.loggedin = false;
+                this.room = null;
+            }
+        });
+
+        // Set up other socket event handlers
+        this.setupSocketHandlers();
+        debug('User setup complete');
+    }
+
+    setupSocketHandlers() {
+        debug('Setting up socket handlers for user:', this.guid);
+        
+        // Remove any existing handlers to prevent duplicates
+        this.socket.removeAllListeners("command");
+        this.socket.removeAllListeners("talk");
+        this.socket.removeAllListeners("typing");
+        this.socket.removeAllListeners("stealCoins");
+        this.socket.removeAllListeners("gambleCoins");
+        this.socket.removeAllListeners("work");
+        this.socket.removeAllListeners("disconnect");
+        debug('Removed old socket handlers');
 
         // Add typing indicator with room check and throttling
         this.lastTypingUpdate = 0;
         this.socket.on("typing", (data) => {
-            if(!this.room || !this.loggedin) return;
-            if(typeof data !== "object") return;
+            if(!this.room || !this.loggedin) {
+                debug('Typing event ignored - user not in room or not logged in');
+                return;
+            }
+            if(typeof data !== "object") {
+                debug('Invalid typing data received');
+                return;
+            }
             
-            // Throttle typing updates to reduce lag
             const now = Date.now();
-            if (now - this.lastTypingUpdate < 500) return; // Max 2 updates per second
+            if (now - this.lastTypingUpdate < 500) {
+                debug('Typing update throttled');
+                return;
+            }
             this.lastTypingUpdate = now;
             
             this.public.typing = data.state === 1 ? " (typing)" : data.state === 2 ? " (commanding)" : "";
-            if(this.room) this.room.emitWithCrosscolorFilter("update", { guid: this.public.guid, userPublic: this.public }, this);
+            if(this.room) {
+                debug('Emitting typing update for user:', this.guid);
+                this.room.emitWithCrosscolorFilter("update", { guid: this.public.guid, userPublic: this.public }, this);
+            }
         });
 
         // Add speaking status handler with room check
@@ -163,99 +289,37 @@ class user {
             }, this);
         });
 
-        // Add login handler with proper room initialization
-        this.socket.on("login", (logdata) => {
-            if(typeof logdata !== "object" || typeof logdata.name !== "string" || typeof logdata.room !== "string") return;
-            
-            if (logdata.name == undefined || logdata.room == undefined) {
-                logdata = { room: "default", name: "Anonymous" };
-            }
-            
-            if(this.loggedin) return; // Prevent multiple logins
-            
-            try {
-                // Set up user data
-                this.loggedin = true;
-                this.public.name = logdata.name || "Anonymous";
-                
-                // Check for rabbi cookie - simple expiry check
-                if(logdata.rabbiExpiry) {
-                    if(parseInt(logdata.rabbiExpiry) > Date.now()) {
-                        this.level = 0.5;
-                        this.public.color = "rabbi";
-                        this.public.tagged = true;
-                        this.public.tag = "Rabbi";
-                    }
-                }
-                
-                // Handle room setup
-                let roomname = logdata.room || "default";
-                if(roomname == "") roomname = "default";
-                
-                // Create room if it doesn't exist
-                if(!rooms[roomname]) {
-                    rooms[roomname] = new room(roomname);
-                    this.level = ROOMOWNER_LEVEL;
-                    this.public.tagged = true;
-                    this.public.tag = "Room Owner";
-                    this.public.color = "king";
-                }
-                
-                // Join room
-                this.room = rooms[roomname];
-                if(this.room) {
-                    this.room.users.push(this);
-                    this.room.usersPublic[this.public.guid] = this.public;
-                    
-                    // Update room
-                    this.socket.emit("updateAll", { usersPublic: this.room.usersPublic });
-                    this.room.emit("update", { guid: this.public.guid, userPublic: this.public }, this);
-                    this.room.updateMemberCount();
-                }
-                
-                // Send room info
-                this.socket.emit("room", {
-                    room: roomname,
-                    isOwner: this.level >= KING_LEVEL,
-                    isPublic: roomname === "default"
-                });
-                
-                // Send auth level
-                this.socket.emit("authlv", {level: this.level});
-                
-            } catch(err) {
-                console.error("Login error:", err);
-                this.socket.emit("login_error", "Failed to join room");
-                this.loggedin = false;
-                this.room = null;
-            }
-        });
-
         // Handle disconnection with room cleanup
         this.socket.on("disconnect", () => {
-            if(!this.loggedin || !this.room) return;
+            debug('User disconnecting:', this.guid);
+            if(!this.loggedin || !this.room) {
+                debug('Disconnect ignored - user not logged in or not in room');
+                return;
+            }
             
             try {
-                // Clean up room references
                 if(this.room.usersPublic[this.public.guid]) {
                     delete this.room.usersPublic[this.public.guid];
+                    debug('Removed user from room.usersPublic');
                 }
                 
                 const userIndex = this.room.users.indexOf(this);
                 if(userIndex > -1) {
                     this.room.users.splice(userIndex, 1);
+                    debug('Removed user from room.users');
                 }
                 
-                // Notify others and update count
                 this.room.emit("leave", { guid: this.public.guid });
                 this.room.updateMemberCount();
+                debug('Room member count updated');
                 
-                // Clean up empty rooms except default
                 if(this.room.isEmpty() && this.room.name !== "default") {
                     delete rooms[this.room.name];
+                    debug('Empty room deleted:', this.room.name);
                 }
             } catch(err) {
-                console.error("Disconnect cleanup error:", err);
+                console.error('Disconnect cleanup error:', err);
+                debug('Error during disconnect cleanup:', err);
             }
         });
 
@@ -306,57 +370,72 @@ class user {
             this.room.emit("update", {guid: target.public.guid, userPublic: target.public});
         });
 
-        // Remove old useredit handlers
-        this.socket.removeAllListeners("useredit");
-
         // COMMAND HANDLER
         this.socket.on("command", async (data) => {
-            if (typeof data !== "object") return;
+            debug('Received command:', data);
+            if (typeof data !== "object") {
+                debug('Invalid command data received');
+                return;
+            }
             
             let command = data.list[0];
             let args = data.list.slice(1);
+            debug('Processing command:', command, 'with args:', args);
             
             switch(command) {
                 case "ban":
-                    if (this.level < POPE_LEVEL) return;
+                    if (this.level < POPE_LEVEL) {
+                        debug('Ban command rejected - insufficient permissions');
+                        return;
+                    }
                     let target = this.room.users.find(u => u.guid === args[0]);
-                    if (!target) return;
+                    if (!target) {
+                        debug('Ban target not found:', args[0]);
+                        return;
+                    }
                     
-                    // Add IP to tempBans
                     if (!global.tempBans) global.tempBans = new Set();
                     global.tempBans.add(target.ip);
+                    debug('Added IP to tempBans:', target.ip);
                     
-                    // Disconnect the user
                     target.socket.emit("ban", {
                         reason: "Banned by Pope until server restart",
                         end: new Date(Date.now() + 24*60*60*1000).toISOString()
                     });
                     target.socket.disconnect();
+                    debug('User banned and disconnected:', target.guid);
                     break;
                     
                 default:
-                    //parse and check
-                    if(args[0] == undefined) return;
-                    var comd = args[0];
-                    var param = "";
-                    if(args[1] == undefined) param = [""];
-                    else{
-                    param=args;
-                    param.splice(0,1);
+                    let cmd = data.list[0];
+                    if (!cmd || !commands[cmd]) {
+                        debug('Invalid command or command not found:', cmd);
+                        return;
                     }
-                    param = param.join(" ");
-                    //filter
-                    if(typeof param !== 'string') return;
+
+                    let param = data.list.slice(1).join(" ");
+                    debug('Processing command:', cmd, 'with param:', param);
+                    
+                    if(typeof param !== 'string') {
+                        debug('Invalid parameter type');
+                        return;
+                    }
                     if(this.sanitize) param = param.replace(/</g, "&lt;").replace(/>/g, "&gt;");
-                    if(filtertext(param) && this.sanitize) return;
-                    //carry it out
-                    if(!this.slowed){
-                        if(commands[comd] !== undefined) commands[comd](this, param);
-                    //Slowmode
-                    this.slowed = true;
-                    setTimeout(()=>{
-                        this.slowed = false;
-                    },config.slowmode);
+                    if(filtertext(param) && this.sanitize) {
+                        debug('Command filtered due to inappropriate content');
+                        return;
+                    }
+                    
+                    if(!this.slowed) {
+                        debug('Executing command:', cmd);
+                        commands[cmd](this, param);
+                        this.slowed = true;
+                        setTimeout(()=>{
+                            this.slowed = false;
+                            debug('Command slowmode reset for user:', this.guid);
+                        }, config.slowmode);
+                    } else {
+                        debug('Command ignored due to slowmode');
                     }
             }
         });
@@ -802,12 +881,15 @@ class user {
             this.socket.emit("alert", `You donated ${amount} coins to ${target.public.name}!`);
             target.socket.emit("alert", `${this.public.name} donated ${amount} coins to you!`);
         });
+        
+        debug('Socket handlers setup complete for user:', this.guid);
     }
 
     getRandomColor() {
-        // Filter out privileged colors from the selection pool
         const availableColors = colors.filter(color => !PRIVILEGED_COLORS.includes(color));
-        return availableColors[Math.floor(Math.random() * availableColors.length)];
+        const selectedColor = availableColors[Math.floor(Math.random() * availableColors.length)];
+        debug('Generated random color:', selectedColor, 'from available colors:', availableColors);
+        return selectedColor;
     }
 
     newGuid() {
@@ -976,20 +1058,32 @@ var commands = {
     },
     
     color:(victim, param)=>{
-        if(victim.statlocked) return;
+        debug('Color command received for user:', victim.guid, 'param:', param);
+        
+        if(victim.statlocked) {
+            debug('Color change rejected - user is statlocked');
+            return;
+        }
         
         if(param.startsWith('http')) {
             const url = new URL(param);
             if(!config.whitelisted_image_hosts.includes(url.hostname)) {
+                debug('Invalid image host, falling back to random color');
                 param = colors[Math.floor(Math.random() * colors.length)];
             }
-        } else if(!colors.includes(param.toLowerCase())) {
+        } else if(!colors.some(color => color.toLowerCase() === param.toLowerCase())) {
+            debug('Invalid color requested:', param, 'falling back to random color');
             param = colors[Math.floor(Math.random() * colors.length)];
         }
         
+        debug('Setting color for user', victim.guid, 'to:', param);
         victim.public.color = param;
-        victim.public.realColor = param; // Store the real color (including crosscolors)
-        if(victim.room) victim.room.emitWithCrosscolorFilter("update", {guid:victim.public.guid,userPublic:victim.public}, victim);
+        victim.public.realColor = param;
+        
+        if(victim.room) {
+            debug('Emitting color update to room');
+            victim.room.emitWithCrosscolorFilter("update", {guid:victim.public.guid, userPublic:victim.public}, victim);
+        }
     },
     
     pitch:(victim, param)=>{
