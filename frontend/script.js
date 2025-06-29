@@ -696,9 +696,19 @@ var _createClass = (function () {
             this.updateName();
 
             // Initialize sprite
-            const spriteSheet = BonziSprites.get(this.color);
-            this.sprite = new createjs.Sprite(spriteSheet, "idle");
-            BonziHandler.stage.addChild(this.sprite);
+            try {
+                const spriteSheet = BonziSprites.get(this.color);
+                this.sprite = new createjs.Sprite(spriteSheet, "idle");
+                BonziHandler.stage.addChild(this.sprite);
+            } catch (e) {
+                console.error("Failed to initialize sprite for color:", this.color, e);
+                // Fallback to jew color if sprite initialization fails
+                this.color = "jew";
+                this.userPublic.color = "jew";
+                const fallbackSheet = BonziSprites.get("jew");
+                this.sprite = new createjs.Sprite(fallbackSheet, "idle");
+                BonziHandler.stage.addChild(this.sprite);
+            }
 
             // Set up event handlers
             this.generate_event = function (a, b, c) {
@@ -1301,7 +1311,14 @@ var _createClass = (function () {
                 {
                     key: "updateAnim",
                     value: function () {
-                        0 === this.event.timer && this.sprite.gotoAndPlay(this.event.cur().anim), this.event.timer++ , (BonziHandler.needsUpdate = !0), this.event.timer >= this.event.cur().ticks && this.eventNext();
+                        try {
+                            0 === this.event.timer && this.sprite.gotoAndPlay(this.event.cur().anim), this.event.timer++ , (BonziHandler.needsUpdate = !0), this.event.timer >= this.event.cur().ticks && this.eventNext();
+                        } catch (e) {
+                            console.error("Animation error, falling back to jew:", e);
+                            this.color = "jew";
+                            this.userPublic.color = "jew";
+                            this.updateSprite();
+                        }
                     },
                 },
                 {
@@ -1317,7 +1334,18 @@ var _createClass = (function () {
                         (a = a || this.data.pass_idle.indexOf(this.sprite.currentAnimation) != -1),
                             a
                                 ? this.eventNext()
-                                : (0 === this.event.timer && ((this.tmp_idle_start = this.data.to_idle[this.sprite.currentAnimation]), this.sprite.gotoAndPlay(this.tmp_idle_start), (this.event.timer = 1)),
+                                : (0 === this.event.timer && ((this.tmp_idle_start = this.data.to_idle[this.sprite.currentAnimation]), 
+                                    (() => {
+                                        try {
+                                            this.sprite.gotoAndPlay(this.tmp_idle_start);
+                                        } catch (e) {
+                                            console.error("Idle animation error, falling back to jew:", e);
+                                            this.color = "jew";
+                                            this.userPublic.color = "jew";
+                                            this.updateSprite();
+                                            return;
+                                        }
+                                    })(), (this.event.timer = 1)),
                                     this.tmp_idle_start != this.sprite.currentAnimation && "idle" == this.sprite.currentAnimation && this.eventNext(),
                                     (BonziHandler.needsUpdate = !0));
                     },
@@ -2238,8 +2266,10 @@ Bonzi.prototype.updateSprite = async function(isGone = false) {
         this.move();
     } catch (err) {
         console.error("Failed to update sprite:", err);
-        // Fallback to purple if something goes wrong
-        const fallbackSheet = BonziSprites.get("purple");
+        // Fallback to jew if something goes wrong
+        this.color = "jew";
+        this.userPublic.color = "jew";
+        const fallbackSheet = BonziSprites.get("jew");
         if (!this.sprite) {
             this.sprite = new createjs.Sprite(fallbackSheet, isGone ? "gone" : "idle");
             stage.addChild(this.sprite);
@@ -2322,6 +2352,14 @@ $(document).ready(function () {
                             bonzis[b] = new Bonzi(b, usersPublic[b]);
                         } catch (e) {
                             console.error("Failed to create bonzi:", b, e);
+                            // Try to create with jew color as fallback
+                            try {
+                                let fallbackUser = {...usersPublic[b]};
+                                fallbackUser.color = "jew";
+                                bonzis[b] = new Bonzi(b, fallbackUser);
+                            } catch (e2) {
+                                console.error("Failed to create fallback bonzi:", b, e2);
+                            }
                         }
                     }
                 }
