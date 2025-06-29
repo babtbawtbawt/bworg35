@@ -804,8 +804,16 @@ class user {
         });
     }
 
-    // Remove checkMessageCooldown method since we don't need it anymore
-    
+    getRandomColor() {
+        // Filter out privileged colors from the selection pool
+        const availableColors = colors.filter(color => !PRIVILEGED_COLORS.includes(color));
+        return availableColors[Math.floor(Math.random() * availableColors.length)];
+    }
+
+    newGuid() {
+        return guidGen();
+    }
+
     // ... rest of the class methods ...
 }
 
