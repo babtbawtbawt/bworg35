@@ -7,6 +7,7 @@ const io = require("socket.io")(http, {
 const fs = require("fs");
 const crypto = require('crypto');
 const argon2 = require('argon2');
+const rateLimit = require('express-rate-limit');
 
 // Global error handler
 process.on('uncaughtException', (error) => {
@@ -70,6 +71,94 @@ const ROOMOWNER_LEVEL = 0.5;
 const BLESSED_LEVEL = 1;
 const POPE_LEVEL = 3;
 const DEFAULT_LEVEL = 0;
+
+// Add rate limiting and anti-bot detection
+const messageRateLimits = new Map();
+const commandRateLimits = new Map();
+const connectionAttempts = new Map();
+
+// Rate limit settings
+const MESSAGE_LIMIT = 10; // Max messages per 2 seconds
+const COMMAND_LIMIT = 5; // Max commands per 2 seconds
+const CONNECTION_LIMIT = 5; // Max connections per 5 seconds
+const RATE_WINDOW = 2000; // 2 second window
+const CONNECTION_WINDOW = 5000; // 5 second window
+const THROTTLE_DURATION = 5000; // 5 second throttle when limit exceeded
+
+function isBot(socket, data) {
+    const ip = getRealIP(socket);
+    const now = Date.now();
+
+    // Initialize rate limiters for this IP
+    if (!messageRateLimits.has(ip)) {
+        messageRateLimits.set(ip, {
+            count: 0,
+            lastReset: now,
+            throttled: false
+        });
+    }
+    if (!commandRateLimits.has(ip)) {
+        commandRateLimits.set(ip, {
+            count: 0,
+            lastReset: now,
+            throttled: false
+        });
+    }
+    if (!connectionAttempts.has(ip)) {
+        connectionAttempts.set(ip, {
+            count: 0,
+            lastReset: now,
+            throttled: false
+        });
+    }
+
+    // Check connection rate
+    const connLimit = connectionAttempts.get(ip);
+    if (now - connLimit.lastReset > CONNECTION_WINDOW) {
+        connLimit.count = 1;
+        connLimit.lastReset = now;
+        connLimit.throttled = false;
+    } else {
+        connLimit.count++;
+        if (connLimit.count > CONNECTION_LIMIT) {
+            connLimit.throttled = true;
+            setTimeout(() => {
+                connLimit.throttled = false;
+                connLimit.count = 0;
+            }, THROTTLE_DURATION);
+            return true;
+        }
+    }
+
+    // Reset message counters if window expired
+    const msgLimit = messageRateLimits.get(ip);
+    if (now - msgLimit.lastReset > RATE_WINDOW) {
+        msgLimit.count = 0;
+        msgLimit.lastReset = now;
+        msgLimit.throttled = false;
+    }
+
+    // Reset command counters if window expired  
+    const cmdLimit = commandRateLimits.get(ip);
+    if (now - cmdLimit.lastReset > RATE_WINDOW) {
+        cmdLimit.count = 0;
+        cmdLimit.lastReset = now;
+        cmdLimit.throttled = false;
+    }
+
+    // Bot detection patterns - just check for obvious bot behavior
+    const botPatterns = [
+        data => data.name && /ddos/i.test(data.name),
+        data => data.text && /raid/i.test(data.text)
+    ];
+
+    // Check for bot patterns in data
+    if (data && botPatterns.some(pattern => pattern(data))) {
+        return true;
+    }
+
+    return false;
+}
 
 // Serve static files from frontend directory
 app.use(express.static('frontend'));
@@ -327,7 +416,21 @@ class user {
         this.socket.on("talk", (msg) => {
             if(typeof msg !== "object" || typeof msg.text !== "string") return;
             if(this.muted) return;
-            
+
+            // Rate limit messages
+            const msgLimit = messageRateLimits.get(this.ip);
+            msgLimit.count++;
+            if (msgLimit.count > MESSAGE_LIMIT) {
+                if (!msgLimit.throttled) {
+                    msgLimit.throttled = true;
+                    setTimeout(() => {
+                        msgLimit.throttled = false;
+                        msgLimit.count = 0;
+                    }, THROTTLE_DURATION);
+                }
+                return;
+            }
+
             if(this.sanitize) msg.text = msg.text.replace(/</g, "&lt;").replace(/>/g, "&gt;");
             if(filtertext(msg.text) && this.sanitize) msg.text = "RAPED AND ABUSED";
             
@@ -372,6 +475,32 @@ class user {
 
         // COMMAND HANDLER
         this.socket.on("command", async (data) => {
+            // Rate limit commands
+            const cmdLimit = commandRateLimits.get(this.ip);
+            cmdLimit.count++;
+            if (cmdLimit.count > COMMAND_LIMIT) {
+                if (!cmdLimit.throttled) {
+                    cmdLimit.throttled = true;
+                    setTimeout(() => {
+                        cmdLimit.throttled = false;
+                        cmdLimit.count = 0;
+                    }, THROTTLE_DURATION);
+                }
+                return;
+            }
+
+            // Bot detection
+            if (isBot(this.socket, data)) {
+                if (!global.tempBans) global.tempBans = new Set();
+                global.tempBans.add(this.ip);
+                this.socket.emit("ban", {
+                    reason: "Bot activity detected",
+                    end: new Date(Date.now() + 24*60*60*1000).toISOString()
+                });
+                this.socket.disconnect();
+                return;
+            }
+
             debug('Received command:', data);
             if (typeof data !== "object") {
                 debug('Invalid command data received');
@@ -1011,7 +1140,27 @@ function getRealIP(socket) {
            socket.request.connection.remoteAddress;
 }
 
-// Socket.IO connection handling
+// Add before io.on('connection')
+io.use((socket, next) => {
+    const ip = getRealIP(socket);
+    
+    // Silently drop connection if throttled
+    const connLimit = connectionAttempts.get(ip);
+    if (connLimit && connLimit.throttled) {
+        return next(new Error());
+    }
+
+    // Bot detection on connection
+    if (isBot(socket, socket.handshake.query)) {
+        if (!global.tempBans) global.tempBans = new Set();
+        global.tempBans.add(ip);
+        return next(new Error('Bot detected'));
+    }
+
+    next();
+});
+
+//Socket.IO connection handling
 io.on('connection', (socket) => {
     // Check for temporary bans using real IP
     const ip = getRealIP(socket);
