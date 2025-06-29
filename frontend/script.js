@@ -346,10 +346,11 @@ function setup() {
             let itemsHtml = "";
             data.items.forEach(item => {
                 const canAfford = (data.balance || 0) >= item.price;
-                itemsHtml += `<div class="shop_item">
-                    <span>${item.name} - ${item.price} coins</span>
-                    <button onclick="buyItem('${item.id}', ${item.price})" ${!canAfford ? 'disabled' : ''}>Buy</button>
-                </div>`;
+                const disabledAttr = !canAfford ? ' disabled' : '';
+                itemsHtml += '<div class="shop_item">';
+                itemsHtml += '<span>' + item.name + ' - ' + item.price + ' coins</span>';
+                itemsHtml += '<button onclick="buyItem(\'' + item.id + '\', ' + item.price + ')"' + disabledAttr + '>Buy</button>';
+                itemsHtml += '</div>';
             });
             $("#shop_items").html(itemsHtml);
             $("#shop").show();
@@ -1122,28 +1123,33 @@ var _createClass = (function () {
                                             console.log("Shop opening - myGuid:", myGuid, "myCoins:", myCoins, "usersPublic:", usersPublic);
                                             
                                             $("#balance_amount").text(myCoins);
-                                            $("#shop_items").html(`
-                                                <div class="shop_item">
-                                                    <span>Lock - 25 coins (Prevents coin theft)</span>
-                                                    <button onclick="buyItem('lock', 25)" ${myCoins < 25 ? 'disabled' : ''}>Buy</button>
-                                                </div>
-                                                <div class="shop_item">
-                                                    <span>Bolt Cutters - 75 coins (Cut through locks)</span>
-                                                    <button onclick="buyItem('boltcutters', 75)" ${myCoins < 75 ? 'disabled' : ''}>Buy</button>
-                                                </div>
-                                                <div class="shop_item">
-                                                    <span>Ring Doorbell - 150 coins (Know who tries to steal)</span>
-                                                    <button onclick="buyItem('ringdoorbell', 150)" ${myCoins < 150 ? 'disabled' : ''}>Buy</button>
-                                                </div>
-                                                <div class="shop_item">
-                                                    <span>Veto Power - 200 coins (Jewify + set own coins 1-200)</span>
-                                                    <button onclick="buyItem('vetopower', 200)" ${myCoins < 200 ? 'disabled' : ''}>Buy</button>
-                                                </div>
-                                                <div class="shop_item">
-                                                    <span>Magical Broom - 999 coins (Endgame CMDs)</span>
-                                                    <button onclick="buyItem('broom', 999)" ${myCoins < 999 ? 'disabled' : ''}>Buy</button>
-                                                </div>
-                                            `);
+                                            let shopHtml = "";
+                                            shopHtml += '<div class="shop_item">';
+                                            shopHtml += '<span>Lock - 25 coins (Prevents coin theft)</span>';
+                                            shopHtml += '<button onclick="buyItem(\'lock\', 25)"' + (myCoins < 25 ? ' disabled' : '') + '>Buy</button>';
+                                            shopHtml += '</div>';
+                                            
+                                            shopHtml += '<div class="shop_item">';
+                                            shopHtml += '<span>Bolt Cutters - 75 coins (Cut through locks)</span>';
+                                            shopHtml += '<button onclick="buyItem(\'boltcutters\', 75)"' + (myCoins < 75 ? ' disabled' : '') + '>Buy</button>';
+                                            shopHtml += '</div>';
+                                            
+                                            shopHtml += '<div class="shop_item">';
+                                            shopHtml += '<span>Ring Doorbell - 150 coins (Know who tries to steal)</span>';
+                                            shopHtml += '<button onclick="buyItem(\'ringdoorbell\', 150)"' + (myCoins < 150 ? ' disabled' : '') + '>Buy</button>';
+                                            shopHtml += '</div>';
+                                            
+                                            shopHtml += '<div class="shop_item">';
+                                            shopHtml += '<span>Veto Power - 200 coins (Jewify + set own coins 1-200)</span>';
+                                            shopHtml += '<button onclick="buyItem(\'vetopower\', 200)"' + (myCoins < 200 ? ' disabled' : '') + '>Buy</button>';
+                                            shopHtml += '</div>';
+                                            
+                                            shopHtml += '<div class="shop_item">';
+                                            shopHtml += '<span>Magical Broom - 999 coins (Endgame CMDs)</span>';
+                                            shopHtml += '<button onclick="buyItem(\'broom\', 999)"' + (myCoins < 999 ? ' disabled' : '') + '>Buy</button>';
+                                            shopHtml += '</div>';
+                                            
+                                            $("#shop_items").html(shopHtml);
                                             $("#shop").show();
                                         }
                                     }, 500);
@@ -1949,12 +1955,30 @@ var usersKeys = [];
 var debug = true;
 var myGuid = null; // Track current user's GUID
 
+// Global error handler
+window.addEventListener('error', function(e) {
+    console.error('Global JavaScript Error:', e.error);
+    console.error('Error at line:', e.lineno, 'column:', e.colno);
+    console.error('Error in file:', e.filename);
+    console.error('Error message:', e.message);
+    return false; // Don't prevent default error handling
+});
+
+// Unhandled promise rejection handler
+window.addEventListener('unhandledrejection', function(e) {
+    console.error('Unhandled Promise Rejection:', e.reason);
+});
+
 $(window).load(function () {
-    $("#login_card").show();
-    $("#login_load").hide();
-    
-    // Initialize voice chat
-    initVoiceChat();
+    try {
+        $("#login_card").show();
+        $("#login_load").hide();
+        
+        // Initialize voice chat
+        initVoiceChat();
+    } catch (error) {
+        console.error("Error in window load handler:", error);
+    }
     
     // Initialize login form
     $("#login_name").val(cookieobject.namee);
@@ -2032,36 +2056,36 @@ $(function () {
     socket.on("disconnect", function (a) {
         if (err == false) errorFatal();
     });
-});
-
-// Add tile button functionality back
-$("#btn_tile").click(function () {
-    var a = $(window).width(),
-        b = $(window).height(),
-        c = 0,
-        d = 80,
-        e = 0,
-        f = 0;
     
-    for (var g = 0; g < usersAmt; g++) {
-        var h = usersKeys[g];
-        if (bonzis[h]) {
-            bonzis[h].move(e, f);
-            e += 200;
-            if (e + 100 > a) {
-                e = 0;
-                f += 160;
-                if (f + 160 > b) {
-                    c += d;
-                    d /= 2;
-                    f = c;
+    // Add tile button functionality
+    $("#btn_tile").click(function () {
+        var a = $(window).width(),
+            b = $(window).height(),
+            c = 0,
+            d = 80,
+            e = 0,
+            f = 0;
+        
+        for (var g = 0; g < usersAmt; g++) {
+            var h = usersKeys[g];
+            if (bonzis[h]) {
+                bonzis[h].move(e, f);
+                e += 200;
+                if (e + 100 > a) {
+                    e = 0;
+                    f += 160;
+                    if (f + 160 > b) {
+                        c += d;
+                        d /= 2;
+                        f = c;
+                    }
                 }
             }
         }
-    }
-}
+    });
+});
 
-// Voice chat functionality
+// Voice chat functionality with error handling
 let voiceChat = {
     mediaRecorder: null,
     audioStream: null,
@@ -2070,85 +2094,128 @@ let voiceChat = {
 };
 
 function initVoiceChat() {
-    // Check if browser supports voice chat
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        console.log("Voice chat not supported in this browser");
-        return;
+    try {
+        // Check if browser supports voice chat
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            console.log("Voice chat not supported in this browser");
+            return;
+        }
+        
+        // Request microphone permission
+        navigator.mediaDevices.getUserMedia({ audio: true })
+            .then(stream => {
+                voiceChat.audioStream = stream;
+                voiceChat.isEnabled = true;
+                console.log("Voice chat enabled - hold 'V' to talk");
+            })
+            .catch(err => {
+                console.log("Microphone access denied:", err);
+            });
+    } catch (error) {
+        console.error("Error initializing voice chat:", error);
     }
-    
-    // Request microphone permission
-    navigator.mediaDevices.getUserMedia({ audio: true })
-        .then(stream => {
-            voiceChat.audioStream = stream;
-            voiceChat.isEnabled = true;
-            console.log("Voice chat enabled - hold 'V' to talk");
-        })
-        .catch(err => {
-            console.log("Microphone access denied:", err);
-        });
 }
 
-// Voice chat key handlers
+// Voice chat key handlers with error handling
 $(document).keydown(function(e) {
-    if (e.key.toLowerCase() === 'v' && !voiceChat.isRecording && voiceChat.isEnabled && voiceChat.audioStream) {
-        startVoiceRecording();
+    try {
+        if (e.key.toLowerCase() === 'v' && !voiceChat.isRecording && voiceChat.isEnabled && voiceChat.audioStream) {
+            startVoiceRecording();
+        }
+    } catch (error) {
+        console.error("Error in keydown handler:", error);
     }
 });
 
 $(document).keyup(function(e) {
-    if (e.key.toLowerCase() === 'v' && voiceChat.isRecording) {
-        stopVoiceRecording();
+    try {
+        if (e.key.toLowerCase() === 'v' && voiceChat.isRecording) {
+            stopVoiceRecording();
+        }
+    } catch (error) {
+        console.error("Error in keyup handler:", error);
     }
 });
 
 function startVoiceRecording() {
-    if (!voiceChat.audioStream) return;
-    
-    voiceChat.isRecording = true;
-    // Use lower quality settings to reduce lag
-    const options = {
-        mimeType: 'audio/webm;codecs=opus',
-        audioBitsPerSecond: 16000 // Lower bitrate for less data
-    };
-    
     try {
-        voiceChat.mediaRecorder = new MediaRecorder(voiceChat.audioStream, options);
-    } catch (e) {
-        // Fallback for browsers that don't support opus
-        voiceChat.mediaRecorder = new MediaRecorder(voiceChat.audioStream);
-    }
-    
-    let audioChunks = [];
-    voiceChat.mediaRecorder.ondataavailable = event => {
-        audioChunks.push(event.data);
-    };
-    
-    voiceChat.mediaRecorder.onstop = () => {
-        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+        if (!voiceChat.audioStream) return;
         
-        // Only send if audio is reasonable size (under 1MB)
-        if (audioBlob.size > 1024 * 1024) {
-            console.log("Audio too large, not sending");
-            return;
+        voiceChat.isRecording = true;
+        // Use lower quality settings to reduce lag
+        const options = {
+            mimeType: 'audio/webm;codecs=opus',
+            audioBitsPerSecond: 16000 // Lower bitrate for less data
+        };
+        
+        try {
+            voiceChat.mediaRecorder = new MediaRecorder(voiceChat.audioStream, options);
+        } catch (e) {
+            // Fallback for browsers that don't support opus
+            console.log("Opus not supported, using default codec");
+            voiceChat.mediaRecorder = new MediaRecorder(voiceChat.audioStream);
         }
         
-        const reader = new FileReader();
-        reader.onload = () => {
-            const audioData = reader.result;
-            socket.emit("voiceChat", { audio: audioData });
+        let audioChunks = [];
+        voiceChat.mediaRecorder.ondataavailable = event => {
+            try {
+                audioChunks.push(event.data);
+            } catch (error) {
+                console.error("Error handling audio data:", error);
+            }
         };
-        reader.readAsDataURL(audioBlob);
-    };
-    
-    voiceChat.mediaRecorder.start();
-    console.log("Recording voice...");
+        
+        voiceChat.mediaRecorder.onstop = () => {
+            try {
+                const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                
+                // Only send if audio is reasonable size (under 1MB)
+                if (audioBlob.size > 1024 * 1024) {
+                    console.log("Audio too large, not sending");
+                    return;
+                }
+                
+                const reader = new FileReader();
+                reader.onload = () => {
+                    try {
+                        const audioData = reader.result;
+                        socket.emit("voiceChat", { audio: audioData });
+                    } catch (error) {
+                        console.error("Error sending voice data:", error);
+                    }
+                };
+                reader.onerror = () => {
+                    console.error("Error reading audio file");
+                };
+                reader.readAsDataURL(audioBlob);
+            } catch (error) {
+                console.error("Error processing audio:", error);
+            }
+        };
+        
+        voiceChat.mediaRecorder.onerror = (event) => {
+            console.error("MediaRecorder error:", event.error);
+            voiceChat.isRecording = false;
+        };
+        
+        voiceChat.mediaRecorder.start();
+        console.log("Recording voice...");
+    } catch (error) {
+        console.error("Error starting voice recording:", error);
+        voiceChat.isRecording = false;
+    }
 }
 
 function stopVoiceRecording() {
-    if (voiceChat.mediaRecorder && voiceChat.isRecording) {
-        voiceChat.mediaRecorder.stop();
+    try {
+        if (voiceChat.mediaRecorder && voiceChat.isRecording) {
+            voiceChat.mediaRecorder.stop();
+            voiceChat.isRecording = false;
+            console.log("Voice recording stopped");
+        }
+    } catch (error) {
+        console.error("Error stopping voice recording:", error);
         voiceChat.isRecording = false;
-        console.log("Voice recording stopped");
     }
 }
 
@@ -2258,7 +2325,5 @@ $(document).ready(function () {
             this
         );
     })();
-}); // Close document.ready
+});
 }
-
-
