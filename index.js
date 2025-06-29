@@ -57,8 +57,8 @@ var guidcounter = 0;
 
 // Authority levels
 const KING_LEVEL = 2;
-const ROOMOWNER_LEVEL = 1;
-const BLESSED_LEVEL = 0.1;
+const ROOMOWNER_LEVEL = 0.5;
+const BLESSED_LEVEL = 1;
 const POPE_LEVEL = 3;
 const DEFAULT_LEVEL = 0;
 
@@ -87,7 +87,7 @@ class user {
         
         // Initialize user properties
         this.room = null;
-        this.guid = guidGen();
+        this.guid = this.newGuid();
         this.public = {
             guid: this.guid,
             color: this.getRandomColor(),
