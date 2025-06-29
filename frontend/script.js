@@ -1261,14 +1261,14 @@ var _createClass = (function () {
                                     
                                     if (d.userPublic.hasLock && hasBoltCutters) {
                                         if (confirm("Use your bolt cutters to break their lock and steal?")) {
-                                            socket.emit("stealCoins", { target: d.id, useBoltCutters: true });
+                                            socket.emit("stealCoins", d.id, true); // true indicates using bolt cutters
                                         }
                                     } else if (d.userPublic.hasSelfDefenseGun) {
                                         if (confirm("WARNING: This user has a self defense gun! If you fail to steal, you'll lose everything. Continue?")) {
-                                            socket.emit("stealCoins", { target: d.id });
+                                            socket.emit("stealCoins", d.id);
                                         }
                                     } else {
-                                        socket.emit("stealCoins", { target: d.id });
+                                        socket.emit("stealCoins", d.id);
                                     }
                                 }
                             },
