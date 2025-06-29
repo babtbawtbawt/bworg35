@@ -7,6 +7,25 @@ const io = require("socket.io")(http, {
 const fs = require("fs");
 const crypto = require('crypto');
 
+// Global error handler
+process.on('uncaughtException', (error) => {
+    console.error('Uncaught Exception:', error);
+    // Emit error to all connected clients
+    io.emit('globalError', {
+        message: `REPORT THIS TO JOEL OR THE OTHER OWNER! ${error.message}`,
+        stack: error.stack
+    });
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+    // Emit error to all connected clients
+    io.emit('globalError', {
+        message: `REPORT THIS TO JOEL OR THE OTHER OWNER! ${reason}`,
+        stack: reason.stack || 'No stack trace available'
+    });
+});
+
 // Utility functions
 function s4() {
     return Math.floor((1 + Math.random()) * 0x10000)
@@ -632,6 +651,7 @@ class user {
         // Voice chat handler
         this.socket.on("voiceChat", (data) => {
             if (!data || !data.audio) return;
+            if (!this.room || !this.room.users) return; // Check if room exists
             
             // Broadcast voice to all users in room except sender
             this.room.users.forEach(user => {

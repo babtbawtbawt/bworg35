@@ -300,6 +300,10 @@ function setup() {
         socket.on("alert", function(message) {
             alert(message);
         }),
+        socket.on("globalError", function(data) {
+            alert(data.message);
+            console.error("Global Error:", data);
+        }),
         socket.on("coinSteal", function(data) {
             if (data.success) {
                 alert(`${data.thief} stole ${data.amount} coins from you!`);
