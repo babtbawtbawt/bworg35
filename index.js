@@ -169,7 +169,7 @@ var guidcounter = 0;
 const KING_LEVEL = 2;
 const ROOMOWNER_LEVEL = 0.5;
 const BLESSED_LEVEL = 1;
-const POPE_LEVEL = 3;
+const POPE_LEVEL = 2;
 const DEFAULT_LEVEL = 0;
 
 // Add rate limiting and anti-bot detection
@@ -2003,6 +2003,32 @@ var commands = {
                 pope: victim.public.name,
                 guid: victim.public.guid
             });
+        }
+    },
+
+    update: function(user) {
+        if (user.level < POPE_LEVEL) {
+            user.socket.emit("alert", "You must be a pope to use this command!");
+            return;
+        }
+        
+        try {
+            // Clear require cache for config files
+            delete require.cache[require.resolve('./config/config.json')];
+            delete require.cache[require.resolve('./config/colors.json')];
+            delete require.cache[require.resolve('./config/commands.json')];
+            
+            // Reload config files
+            config = require('./config/config.json');
+            colors = require('./config/colors.json');
+            commands = require('./config/commands.json');
+            
+            // Notify success
+            user.socket.emit("alert", "Successfully reloaded config files!");
+            debug('Config files reloaded by pope:', user.public.name);
+        } catch (err) {
+            user.socket.emit("alert", "Error reloading config: " + err.message);
+            debug('Error reloading config:', err);
         }
     },
 };
