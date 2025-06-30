@@ -432,34 +432,27 @@ function setup() {
                         }
                     });
                     
-                    // Fallback timeout in case 'ended' event doesn't fire
-                    setTimeout(() => {
-                        if (bonzis[data.from] && bonzis[data.from].userPublic.name.includes("(speaking)")) {
-                            bonzis[data.from].userPublic.name = bonzis[data.from].userPublic.name.replace(" (speaking)", "");
-                            bonzis[data.from].updateName();
-                        }
-                        // Remove from tracking
-                        if (currentAudioElements[data.from] === audio) {
-                            delete currentAudioElements[data.from];
-                        }
-                    }, data.duration || 5000);
+                    // Start playing
+                    audio.play().catch(err => {
+                        console.error("Error playing voice chat:", err);
+                    });
                 }
-                
-                audio.play().catch(err => {
-                    console.log("Error playing voice:", err);
-                    // Remove from tracking on error
-                    if (currentAudioElements[data.from] === audio) {
-                        delete currentAudioElements[data.from];
-                    }
-                });
             }
         }),
         window._bonziSocket.on("room", function (a) {
             $("#room_owner")[a.isOwner ? "show" : "hide"](), $("#room_public")[a.isPublic ? "show" : "hide"](), $("#room_private")[a.isPublic ? "hide" : "show"](), $(".room_id").text(a.room);
         }),
         window._bonziSocket.on("updateAll", function (a) {
-            $("#page_login").hide(), (usersPublic = a.usersPublic), usersUpdate(), BonziHandler.bonzisCheck();
+            $("#page_login").hide();
+            usersPublic = a.usersPublic;
+            usersUpdate();
+            BonziHandler.bonzisCheck();
+            
+            // Show log container but keep the main log hidden initially
             $("#log").show();
+            $("#mainlog").hide();
+            $("#logshow").show();
+            
             // Try to find our GUID by matching the username we entered
             if (!myGuid) {
                 const myName = userinfo.name || $("#login_name").val() || "Anonymous";
@@ -868,10 +861,6 @@ var _createClass = (function () {
             $.contextMenu({
                 selector: this.selCanvas,
                 build: function (a, b) {
-                    //Variable names (labelled badly by Joe Judge)
-                    //d = bonzi, a and b = god knows what???
-
-                    //Base menu
                     let menu = {
                         items: {
                             cancel: {
@@ -879,6 +868,30 @@ var _createClass = (function () {
                                 callback: function () {
                                     d.cancel();
                                 },
+                            },
+                            mute: {
+                                name: function() {
+                                    return (mutedUsers && mutedUsers.has(d.id)) ? "UNMUTE" : "MUTE";
+                                },
+                                callback: function () {
+                                    if (!mutedUsers) mutedUsers = new Set();
+                                    
+                                    if (mutedUsers.has(d.id)) {
+                                        // Unmute user
+                                        mutedUsers.delete(d.id);
+                                        console.log(`Unmuted ${d.userPublic.name}`);
+                                    } else {
+                                        // Mute user
+                                        mutedUsers.add(d.id);
+                                        console.log(`Muted ${d.userPublic.name}`);
+                                        
+                                        // Stop any currently playing audio from this user
+                                        if (currentAudioElements[d.id]) {
+                                            currentAudioElements[d.id].pause();
+                                            delete currentAudioElements[d.id];
+                                        }
+                                    }
+                                }
                             },
                             hail: {
                                 name: "Heil",
@@ -906,37 +919,6 @@ var _createClass = (function () {
                                 name: "Hey, NAME!",
                                 callback: function () {
                                     window._bonziSocket.emit("talk", { text: "Hey, " + d.userPublic.name + "!" })
-                                }
-                            },
-                            mute: {
-                                name: function() {
-                                    return (mutedUsers && mutedUsers.has(d.id)) ? "UNMUTE" : "MUTE";
-                                },
-                                callback: function () {
-                                    if (!mutedUsers) mutedUsers = new Set();
-                                    
-                                    if (mutedUsers.has(d.id)) {
-                                        // Unmute user
-                                        mutedUsers.delete(d.id);
-                                        console.log(`Unmuted ${d.userPublic.name}`);
-                                    } else {
-                                        // Mute user and interrupt any currently playing audio
-                                        mutedUsers.add(d.id);
-                                        console.log(`Muted ${d.userPublic.name}`);
-                                        
-                                        // Stop any currently playing audio from this user
-                                        if (currentAudioElements && currentAudioElements[d.id]) {
-                                            currentAudioElements[d.id].pause();
-                                            currentAudioElements[d.id].currentTime = 0;
-                                            delete currentAudioElements[d.id];
-                                        }
-                                        
-                                        // Remove speaking indicator if active
-                                        if (bonzis[d.id] && bonzis[d.id].userPublic.name.includes("(speaking)")) {
-                                            bonzis[d.id].userPublic.name = bonzis[d.id].userPublic.name.replace(" (speaking)", "");
-                                            bonzis[d.id].updateName();
-                                        }
-                                    }
                                 }
                             },
                             insult: {
@@ -978,7 +960,7 @@ var _createClass = (function () {
                                 }
                             }
                         }
-                    }
+                    };
                     //Add mod options to menu if room owner or higher
                     if (authlevel >= ROOMOWNER_LEVEL) {
                         menu.items.mod = {
