@@ -57,7 +57,6 @@ if(blacklist.includes("")) blacklist = []; //If the blacklist has a blank line, 
 // Track banned names and name usage
 const bannedNames = new Map(); // name -> unban timestamp
 const nameUsage = new Map(); // name -> {count: number, users: Set<socket>}
-const NAME_FLOOD_THRESHOLD = 3; // How many users with same name triggers flood protection
 const NAME_BAN_DURATION = 30 * 60 * 1000; // 30 minutes in milliseconds
 
 // Connection flood protection
@@ -334,14 +333,14 @@ class user {
                 
                 // Check if name is banned
                 if(isNameBanned(logdata.name)) {
-                    this.socket.emit("kick", {reason: "This name is temporarily banned due to flooding"});
+                    this.socket.emit("kick", {reason: "This name is temporarily banned"});
                     this.socket.disconnect();
                     return;
                 }
                 
                 this.public.name = logdata.name || "Anonymous";
                 
-                // Track name usage for flood protection
+                // Track name usage without flood protection
                 if(!nameUsage.has(this.public.name)) {
                     nameUsage.set(this.public.name, {
                         count: 1,
@@ -351,12 +350,6 @@ class user {
                     const usage = nameUsage.get(this.public.name);
                     usage.count++;
                     usage.users.add(this);
-                    
-                    // Check for flood
-                    if(usage.count >= NAME_FLOOD_THRESHOLD) {
-                        banNameAndKickUsers(this.public.name, this.room);
-                        return;
-                    }
                 }
                 
                 // Check for rabbi cookie - simple expiry check
