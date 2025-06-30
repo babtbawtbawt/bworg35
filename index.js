@@ -123,9 +123,7 @@ function isIPBanned(ip) {
 
 // Function to check if a name is currently banned
 function isNameBanned(name) {
-    // Anonymous is exempt from name bans
-    if (name === "Anonymous") return false;
-    
+    // Only check explicit bans, no other restrictions
     if (bannedNames.has(name)) {
         const unbanTime = bannedNames.get(name);
         if (Date.now() >= unbanTime) {
@@ -138,25 +136,21 @@ function isNameBanned(name) {
     return false;
 }
 
-// Function to ban a name and kick all users using it
+// Function to ban a name and kick users
 function banNameAndKickUsers(name, room) {
-    // Don't ban Anonymous
-    if (name === "Anonymous") return;
-    
-    // Ban the name
+    // Simplified name banning
     bannedNames.set(name, Date.now() + NAME_BAN_DURATION);
     
-    // Get all users with this name
-    const usageInfo = nameUsage.get(name);
-    if (usageInfo && room) {
-        // Kick all users with this name
-        usageInfo.users.forEach(user => {
-            user.socket.emit("kick", {reason: "Name banned due to flooding"});
-            user.socket.disconnect();
-        });
-        
-        // Clear the usage tracking for this name
-        nameUsage.delete(name);
+    // Only kick users if room is provided
+    if (room) {
+        const usageInfo = nameUsage.get(name);
+        if (usageInfo) {
+            usageInfo.users.forEach(user => {
+                user.socket.emit("kick", {reason: "Name banned"});
+                user.socket.disconnect();
+            });
+            nameUsage.delete(name);
+        }
     }
 }
 
@@ -191,7 +185,7 @@ const RATE_WINDOW = 2000; // 2 second window
 const CONNECTION_WINDOW = 5000; // 5 second window
 const THROTTLE_DURATION = 5000; // 5 second throttle when limit exceeded
 
-// Enhanced bot detection
+// Enhanced bot detection with removed name checks
 function isBot(socket, data) {
     if (!socket) return true;
     const ip = getRealIP(socket);
@@ -199,7 +193,7 @@ function isBot(socket, data) {
     
     const now = Date.now();
 
-    // Initialize all rate limiters for this IP if they don't exist
+    // Initialize rate limiters
     if (!messageRateLimits.has(ip)) {
         messageRateLimits.set(ip, {
             count: 0,
@@ -225,20 +219,14 @@ function isBot(socket, data) {
     // Initialize tracking if not exists
     if (!socket.userData) {
         socket.userData = {
-            nameChanges: 0,
-            lastNameChange: 0,
             commandCount: 0,
             lastCommandReset: now,
-            quoteCount: 0,
-            lastQuoteReset: now,
-            colorChanges: 0,
-            lastColorChange: now,
             lastMessages: [],
             messagePatterns: new Set()
         };
     }
 
-    // Check for known malicious patterns in names or messages
+    // Check for known malicious patterns
     if (data) {
         const textToCheck = JSON.stringify(data).toLowerCase();
         for (const pattern of KNOWN_MALICIOUS_PATTERNS) {
@@ -249,18 +237,6 @@ function isBot(socket, data) {
         }
     }
 
-    // Check for rapid name changes
-    if (socket.userData.nameChanges > 5 && (now - socket.userData.lastNameChange) < 10000) {
-        console.log(`[BOT] Detected rapid name changes from IP: ${ip}`);
-        return true;
-    }
-
-    // Check for rapid color changes
-    if (socket.userData.colorChanges > 5 && (now - socket.userData.lastColorChange) < 10000) {
-        console.log(`[BOT] Detected rapid color changes from IP: ${ip}`);
-        return true;
-    }
-
     // Check for message patterns indicating bot behavior
     if (socket.userData.lastMessages.length >= 3) {
         const pattern = socket.userData.lastMessages.join('|');
@@ -269,12 +245,6 @@ function isBot(socket, data) {
             return true;
         }
         socket.userData.messagePatterns.add(pattern);
-    }
-
-    // Check for excessive quote usage
-    if (socket.userData.quoteCount > 10 && (now - socket.userData.lastQuoteReset) < 10000) {
-        console.log(`[BOT] Detected quote spam from IP: ${ip}`);
-        return true;
     }
 
     return false;
