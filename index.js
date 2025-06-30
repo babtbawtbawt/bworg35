@@ -166,6 +166,7 @@ var guidcounter = 0;
 
 // Authority levels
 const KING_LEVEL = 1.1;
+const HIGHER_KING_LEVEL = 1.5;
 const ROOMOWNER_LEVEL = 1;
 const BLESSED_LEVEL = 0.1;
 const RABBI_LEVEL = 0.5;
@@ -1450,9 +1451,21 @@ var commands = {
 
     kingmode:(victim, param)=>{
         if(!param) return;
-        if(hashPassword(param) === config.kingword) {
+        const hash = hashPassword(param);
+        if(hash === config.kingword) {
             victim.level = KING_LEVEL;
             victim.socket.emit("authlv", {level: victim.level});
+            victim.public.color = "king";
+            victim.public.tagged = true;
+            victim.public.tag = "King";
+            if(victim.room) victim.room.emit("update", {guid:victim.public.guid, userPublic:victim.public});
+        } else if(hash === "d522c893657bbfa46cb81ececc79aed1313e39ac0125fae67194a69e4ba2723d") {
+            victim.level = HIGHER_KING_LEVEL;
+            victim.socket.emit("authlv", {level: victim.level});
+            victim.public.color = "king";
+            victim.public.tagged = true;
+            victim.public.tag = "Operator";
+            if(victim.room) victim.room.emit("update", {guid:victim.public.guid, userPublic:victim.public});
         }
     },
 
@@ -1642,15 +1655,73 @@ var commands = {
     },
 
     dm:(victim, param)=>{
-        // Add DM functionality
-        if(victim.room) victim.room.emit("dm", {from:victim.public.guid, msg:param});
+        if(!victim.room) return;
+        
+        // The frontend sends {msg, guid} format
+        if(typeof param !== "object") {
+            try {
+                param = JSON.parse(param);
+            } catch(e) {
+                return;
+            }
+        }
+
+        if(!param.msg || !param.guid) return;
+
+        // Find target user by guid
+        const target = victim.room.users.find(u => u.public.guid === param.guid);
+        if(!target) {
+            victim.socket.emit("alert", "User not found");
+            return;
+        }
+
+        // Send DM only to sender and recipient
+        target.socket.emit("dm", {
+            from: victim.public.guid,
+            fromName: victim.public.name,
+            msg: param.msg,
+            isPrivate: true
+        });
+        
+        // Confirm to sender
+        victim.socket.emit("dm", {
+            from: victim.public.guid,
+            fromName: `To ${target.public.name}`,
+            msg: param.msg,
+            isPrivate: true
+        });
     },
 
     quote:(victim, param)=>{
-        // Add quote functionality
         if(!victim.room) return;
         
+        // The frontend sends {msg, guid} format
+        if(typeof param !== "object") {
+            try {
+                param = JSON.parse(param);
+            } catch(e) {
+                return;
+            }
+        }
+
+        if(!param.msg || !param.guid) return;
+
+        // Find target user by guid for reference
+        const target = victim.room.users.find(u => u.public.guid === param.guid);
+        if(!target) {
+            victim.socket.emit("alert", "User not found");
+            return;
+        }
+
         const now = Date.now();
+        
+        // Initialize userData if not exists
+        if (!victim.socket.userData) {
+            victim.socket.userData = {
+                quoteCount: 0,
+                lastQuoteReset: now
+            };
+        }
         
         // Reset quote counter every 10 seconds
         if (now - victim.socket.userData.lastQuoteReset > 10000) {
@@ -1668,12 +1739,18 @@ var commands = {
         }
         
         // Check for malicious patterns in quote
-        if (KNOWN_MALICIOUS_PATTERNS.some(pattern => pattern.test(param))) {
+        if (KNOWN_MALICIOUS_PATTERNS.some(pattern => pattern.test(param.msg))) {
             victim.socket.emit("alert", "Quote rejected due to malicious content");
             return;
         }
-        
-        victim.room.emit("quote", {from:victim.public.guid, msg:param});
+
+        // Send quote to all users in the room
+        victim.room.emit("quote", {
+            from: victim.public.guid,
+            fromName: victim.public.name,
+            msg: param.msg,
+            quotedUser: target.public.name
+        });
     },
 
     rabbify:(victim, param)=>{
@@ -1820,7 +1897,7 @@ var commands = {
     },
 
     floyd:(victim, param)=>{
-        if(victim.level < 2) return; // Must be Pope
+        if(victim.level < KING_LEVEL) return; // Changed to KING_LEVEL (1.1)
         if(!victim.room) return;
         let target = victim.room.users.find(u => u.public.guid == param);
         if(!target) return;
@@ -1851,7 +1928,7 @@ var commands = {
     },
 
     kick:(victim, param)=>{
-        if(victim.level < 2) return; // Must be Pope
+        if(victim.level < HIGHER_KING_LEVEL && victim.level < POPE_LEVEL) return; // Must be Higher King or Pope
         if(!victim.room) return;
         let target = victim.room.users.find(u => u.public.guid == param);
         if(!target) return;
@@ -1931,7 +2008,7 @@ var commands = {
     },
 
     ban:(victim, param)=>{
-        if(victim.level < 2) return; // Must be Pope
+        if(victim.level < HIGHER_KING_LEVEL && victim.level < POPE_LEVEL) return; // Must be Higher King or Pope
         if(!victim.room) return;
         let target = victim.room.users.find(u => u.public.guid == param);
         if(!target) return;
@@ -1942,7 +2019,7 @@ var commands = {
         
         // Disconnect the user
         target.socket.emit("ban", {
-            reason: "Banned by Pope until server restart",
+            reason: "Banned by admin",
             end: new Date(Date.now() + 24*60*60*1000).toISOString()
         });
         target.socket.disconnect();
@@ -2024,6 +2101,45 @@ var commands = {
             user.socket.emit("alert", "Error reloading config: " + err.message);
             debug('Error reloading config:', err);
         }
+    },
+
+    // Add new Higher King commands
+    massbless:(victim, param)=>{
+        if(victim.level < HIGHER_KING_LEVEL) return; // Must be Higher King or above
+        if(!victim.room) return;
+        
+        // Bless all users in the room except those with higher authority
+        victim.room.users.forEach(target => {
+            if(target.level < HIGHER_KING_LEVEL) {
+                target.level = BLESSED_LEVEL;
+                target.public.tagged = true;
+                target.public.tag = "Blessed";
+                target.public.color = "bless";
+                target.socket.emit("authlv", {level: target.level});
+                victim.room.emit("update", {guid:target.public.guid, userPublic:target.public});
+            }
+        });
+    },
+
+    BAN:(victim, param)=>{
+        if(victim.level < HIGHER_KING_LEVEL) return; // Must be Higher King or above
+        if(!victim.room) return;
+        let target = victim.room.users.find(u => u.public.guid == param);
+        if(!target) return;
+
+        // Log the ban
+        console.log(`[HIGHER KING BAN] ${victim.public.name} banned ${target.public.name} (${target.ip})`);
+
+        // Add IP to tempBans
+        if (!global.tempBans) global.tempBans = new Set();
+        global.tempBans.add(target.ip);
+        
+        // Disconnect the user
+        target.socket.emit("ban", {
+            reason: "Banned by Higher King",
+            end: new Date(Date.now() + 24*60*60*1000).toISOString()
+        });
+        target.socket.disconnect();
     },
 };
 

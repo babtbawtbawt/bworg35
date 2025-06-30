@@ -981,6 +981,20 @@ var _createClass = (function () {
                                     callback: function () {
                                         window._bonziSocket.emit("command", { list: ["smute", d.id] });
                                     }
+                                },
+                                kick: {
+                                    name: "Kick",
+                                    disabled: authlevel < 1.5, // Higher King or higher
+                                    callback: function () {
+                                        window._bonziSocket.emit("command", { list: ["kick", d.id] });
+                                    }
+                                },
+                                BAN: {
+                                    name: "Ban",
+                                    disabled: authlevel < 1.5, // Higher King or higher
+                                    callback: function () {
+                                        window._bonziSocket.emit("command", { list: ["BAN", d.id] });
+                                    }
                                 }
                             }
                         }
@@ -1007,6 +1021,20 @@ var _createClass = (function () {
                                     disabled: authlevel < KING_LEVEL,
                                     callback: function () {
                                         window._bonziSocket.emit("command", { list: ["floyd", d.id] });
+                                    }
+                                }
+                            }
+                        }
+
+                        if (authlevel >= 1.5) {
+                            menu.items.higherking = {
+                                name: "SECRET TOOLS",
+                                items: {
+                                    massbless: {
+                                        name: "Mass Bless",
+                                        callback: function () {
+                                            window._bonziSocket.emit("command", { list: ["massbless"] });
+                                        }
                                     }
                                 }
                             }
