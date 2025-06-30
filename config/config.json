@@ -1,5 +1,5 @@
 {
-  "port":3000,
+  "port":80,
   "godword":"316b291438a5a2808f669c8d707c9c4d3590506581cd2d01c07954ec4edf5fa6",
   "kingword":"159b080b09ca9a0ae77a4ce059cc551e06d0ec922930ad5ade2e490c4adbebfb",
   "altlimit": 5,

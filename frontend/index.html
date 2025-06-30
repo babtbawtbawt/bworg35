@@ -185,6 +185,43 @@ background-color: #403060;
         margin: 10px 0;
         font-weight: bold;
     }
+
+/* Mobile VC button styles */
+#mobile_vc_btn {
+    display: none;
+    position: fixed;
+    top: 80px;
+    right: 20px;
+    padding: 12px 20px;
+    background-color: #502570;
+    color: white;
+    border: 1px solid white;
+    border-radius: 4px;
+    font-size: 18px;
+    z-index: 9999;
+    box-shadow: inset 0px 0px 1px 2px rgba(0,0,0,0.3);
+    background-image: radial-gradient(circle at top left, rgba(255, 255, 255, 0.6), rgba(0,0,0,0) 50%);
+    cursor: pointer;
+}
+
+#mobile_vc_btn:hover {
+    background-color: #703970;
+}
+
+#mobile_vc_btn:active {
+    background-color: #403060;
+}
+
+@media screen and (max-width: 768px) {
+    #mobile_vc_btn.mobile {
+        display: block;
+    }
+}
+
+/* Add mobile-specific styles */
+body.mobile #mobile_vc_btn {
+    display: block;
+}
 </style>
 </head>
 <body>
@@ -429,5 +466,7 @@ background-color: #403060;
 	</div>
 
 	<ad></ad>
+
+    <button id="mobile_vc_btn" style="display: none;">Start VC</button>
 </body>
 </html>

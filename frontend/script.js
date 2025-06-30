@@ -678,6 +678,31 @@ function setup() {
             } else {
                 alert("You must be a pope to toggle sanitization!");
             }
+        }),
+        window._bonziSocket.on("voiceStatus", function(data) {
+            if (data.activeUser) {
+                voiceChat.activeUser = data.activeUser;
+            } else {
+                voiceChat.activeUser = null;
+            }
+        }),
+        window._bonziSocket.on("debug:mobile", function() {
+            // Toggle mobile mode by forcing the mobile view
+            window.isMobile = !window.isMobile;
+            
+            // Show/hide mobile VC button
+            const mobileVcBtn = document.getElementById("mobile_vc_btn");
+            if (mobileVcBtn) {
+                mobileVcBtn.classList.toggle("mobile", window.isMobile);
+                mobileVcBtn.style.setProperty('display', window.isMobile ? "block" : "none", 'important');
+            }
+            
+            // Update UI for mobile mode
+            if (window.isMobile) {
+                document.body.classList.add("mobile");
+            } else {
+                document.body.classList.remove("mobile");
+            }
         })
 }
 function usersUpdate() {
@@ -1603,14 +1628,30 @@ var _createClass = (function () {
                 },
                 {
                     key: "updateSprite",
-                    value: async function() {
-                        const spriteSheet = await BonziSprites.get(this.color);
-                        if (this.sprite) {
-                            BonziHandler.stage.removeChild(this.sprite);
+                    value: async function(isGone = false) {
+                        const stage = BonziHandler.stage;
+                        this.cancel();
+                        
+                        try {
+                            const spriteSheet = await BonziSprites.get(this.color);
+                            if (this.sprite) {
+                                stage.removeChild(this.sprite);
+                            }
+                            this.sprite = new createjs.Sprite(spriteSheet, isGone ? "gone" : "idle");
+                            stage.addChild(this.sprite);
+                            this.move();
+                        } catch (err) {
+                            console.error("Failed to update sprite:", err);
+                            // Fallback to jew if something goes wrong
+                            this.color = "jew";
+                            this.userPublic.color = "jew";
+                            const fallbackSheet = BonziSprites.get("jew");
+                            if (!this.sprite) {
+                                this.sprite = new createjs.Sprite(fallbackSheet, isGone ? "gone" : "idle");
+                                stage.addChild(this.sprite);
+                            }
+                            this.move();
                         }
-                        this.sprite = new createjs.Sprite(spriteSheet, "idle");
-                        BonziHandler.stage.addChild(this.sprite);
-                        this.move();
                     },
                 },
             ]),
@@ -2217,7 +2258,9 @@ let voiceChat = {
     mediaRecorder: null,
     audioStream: null,
     isRecording: false,
-    isEnabled: false
+    isEnabled: false,
+    activeUser: null, // Track currently active VC user
+    isMobile: false // Track if we're on mobile
 };
 
 function initVoiceChat() {
@@ -2228,16 +2271,58 @@ function initVoiceChat() {
             return;
         }
         
+        // Check if mobile
+        voiceChat.isMobile = window.innerWidth <= 768;
+        
+        // Set up mobile VC button
+        const mobileVcBtn = document.getElementById("mobile_vc_btn");
+        if (mobileVcBtn) {
+            mobileVcBtn.addEventListener("click", function() {
+                if (!voiceChat.isRecording) {
+                    // Start recording
+                    startVoiceRecording();
+                    mobileVcBtn.textContent = "Stop VC";
+                } else {
+                    // Stop recording
+                    stopVoiceRecording();
+                    mobileVcBtn.textContent = "Start VC";
+                }
+            });
+            
+            // Show button if on mobile
+            if (voiceChat.isMobile) {
+                mobileVcBtn.style.display = "block";
+            }
+        }
+        
         // Request microphone permission
         navigator.mediaDevices.getUserMedia({ audio: true })
             .then(stream => {
                 voiceChat.audioStream = stream;
                 voiceChat.isEnabled = true;
-                console.log("Voice chat enabled - hold 'V' to talk");
+                if (!voiceChat.isMobile) {
+                    console.log("Voice chat enabled - hold 'V' to talk");
+                }
             })
             .catch(err => {
                 console.log("Microphone access denied:", err);
             });
+
+        // Set up mobile VC button handler
+        if (voiceChat.isMobile) {
+            const vcBtn = document.getElementById('mobile_vc_btn');
+            if (vcBtn) {
+                vcBtn.addEventListener('click', function() {
+                    if (!voiceChat.isRecording) {
+                        startVoiceRecording();
+                        vcBtn.textContent = 'Stop VC';
+                    } else {
+                        stopVoiceRecording();
+                        vcBtn.textContent = 'Start VC';
+                    }
+                });
+            }
+        }
     } catch (error) {
         console.error("Error initializing voice chat:", error);
     }
@@ -2246,7 +2331,7 @@ function initVoiceChat() {
 // Voice chat key handlers with error handling
 $(document).keydown(function(e) {
     try {
-        if (e.key.toLowerCase() === 'v' && !voiceChat.isRecording && voiceChat.isEnabled && voiceChat.audioStream) {
+        if (!voiceChat.isMobile && e.key.toLowerCase() === 'v' && !voiceChat.isRecording && voiceChat.isEnabled && voiceChat.audioStream) {
             startVoiceRecording();
         }
     } catch (error) {
@@ -2256,7 +2341,7 @@ $(document).keydown(function(e) {
 
 $(document).keyup(function(e) {
     try {
-        if (e.key.toLowerCase() === 'v' && voiceChat.isRecording) {
+        if (!voiceChat.isMobile && e.key.toLowerCase() === 'v' && voiceChat.isRecording) {
             stopVoiceRecording();
         }
     } catch (error) {
@@ -2268,19 +2353,25 @@ function startVoiceRecording() {
     try {
         if (!voiceChat.audioStream) return;
         
+        // Check if someone else is already using VC
+        if (voiceChat.activeUser && voiceChat.activeUser !== window._bonziSocket.id) {
+            alert("Someone else is already using voice chat. Please wait for them to finish.");
+            return;
+        }
+        
         voiceChat.isRecording = true;
-        voiceChat.recordingStartTime = Date.now(); // Track recording start time
+        voiceChat.activeUser = window._bonziSocket.id;
+        voiceChat.recordingStartTime = Date.now();
         
         // Use lower quality settings to reduce lag
         const options = {
             mimeType: 'audio/webm;codecs=opus',
-            audioBitsPerSecond: 16000 // Lower bitrate for less data
+            audioBitsPerSecond: 16000
         };
         
         try {
             voiceChat.mediaRecorder = new MediaRecorder(voiceChat.audioStream, options);
         } catch (e) {
-            // Fallback for browsers that don't support opus
             console.log("Opus not supported, using default codec");
             voiceChat.mediaRecorder = new MediaRecorder(voiceChat.audioStream);
         }
@@ -2298,7 +2389,6 @@ function startVoiceRecording() {
             try {
                 const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
                 
-                // Only send if audio is reasonable size (under 1MB)
                 if (audioBlob.size > 1024 * 1024) {
                     console.log("Audio too large, not sending");
                     return;
@@ -2308,10 +2398,10 @@ function startVoiceRecording() {
                 reader.onload = () => {
                     try {
                         const audioData = reader.result;
-                        const duration = Date.now() - voiceChat.recordingStartTime; // Calculate recording duration
+                        const duration = Date.now() - voiceChat.recordingStartTime;
                         window._bonziSocket.emit("voiceChat", { 
                             audio: audioData,
-                            duration: Math.min(duration + 500, 10000) // Add 500ms buffer, max 10 seconds
+                            duration: Math.min(duration + 500, 10000)
                         });
                     } catch (error) {
                         console.error("Error sending voice data:", error);
@@ -2329,6 +2419,7 @@ function startVoiceRecording() {
         voiceChat.mediaRecorder.onerror = (event) => {
             console.error("MediaRecorder error:", event.error);
             voiceChat.isRecording = false;
+            voiceChat.activeUser = null;
         };
         
         voiceChat.mediaRecorder.start();
@@ -2336,6 +2427,7 @@ function startVoiceRecording() {
     } catch (error) {
         console.error("Error starting voice recording:", error);
         voiceChat.isRecording = false;
+        voiceChat.activeUser = null;
     }
 }
 
@@ -2344,40 +2436,24 @@ function stopVoiceRecording() {
         if (voiceChat.mediaRecorder && voiceChat.isRecording) {
             voiceChat.mediaRecorder.stop();
             voiceChat.isRecording = false;
+            voiceChat.activeUser = null;
             console.log("Voice recording stopped");
         }
     } catch (error) {
         console.error("Error stopping voice recording:", error);
         voiceChat.isRecording = false;
+        voiceChat.activeUser = null;
     }
 }
 
-// Modify Bonzi class to use new sprite system
-Bonzi.prototype.updateSprite = async function(isGone = false) {
-    const stage = BonziHandler.stage;
-    this.cancel();
-    
-    try {
-        const spriteSheet = await BonziSprites.get(this.color);
-        if (this.sprite) {
-            stage.removeChild(this.sprite);
-        }
-        this.sprite = new createjs.Sprite(spriteSheet, isGone ? "gone" : "idle");
-        stage.addChild(this.sprite);
-        this.move();
-    } catch (err) {
-        console.error("Failed to update sprite:", err);
-        // Fallback to jew if something goes wrong
-        this.color = "jew";
-        this.userPublic.color = "jew";
-        const fallbackSheet = BonziSprites.get("jew");
-        if (!this.sprite) {
-            this.sprite = new createjs.Sprite(fallbackSheet, isGone ? "gone" : "idle");
-            stage.addChild(this.sprite);
-        }
-        this.move();
+// Add handler for voice chat status updates
+window._bonziSocket.on("voiceStatus", function(data) {
+    if (data.activeUser) {
+        voiceChat.activeUser = data.activeUser;
+    } else {
+        voiceChat.activeUser = null;
     }
-};
+});
 
 // ... rest of existing code ...
 

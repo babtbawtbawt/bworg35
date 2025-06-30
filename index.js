@@ -293,7 +293,8 @@ class user {
             hasBoltCutters: false,
             hasSelfDefenseGun: false,
             hasRingDoorbell: false,
-            crosscolorsEnabled: true
+            crosscolorsEnabled: true,
+            voiceMuted: false
         };
         debug('Initial user color:', this.public.color);
         
@@ -303,7 +304,7 @@ class user {
         this.sanitize = true;
         this.muted = false;
         this.statlocked = false;
-        this.voiceMuted = false;
+        this.public.voiceMuted = false;
         this.originalName = "";
         this.stealSuccessRate = 0.5;
         this.public.isHomeless = false;
@@ -459,7 +460,7 @@ class user {
         // Add speaking status handler with room check
         this.socket.on("speaking", (speaking) => {
             if(!this.room || !this.loggedin) return;
-            if(this.voiceMuted) return;
+            if(this.public.voiceMuted) return;
             
             if(speaking) {
                 if(!this.public.speaking) {
@@ -478,10 +479,71 @@ class user {
             }
         });
 
+        // Add voice chat handler with room check and user limit
+        this.socket.on("voiceChat", (data) => {
+            if (!data || !data.audio) return;
+            if (!this.room || !this.room.users) return;
+            
+            // Check if this user is allowed to use voice chat
+            if (this.room.activeVoiceUser && this.room.activeVoiceUser !== this.guid) {
+                this.socket.emit("alert", "Someone else is already using voice chat");
+                return;
+            }
+            
+            // Set this user as the active voice chat user
+            this.room.activeVoiceUser = this.guid;
+            
+            // Add speaking indicator
+            if(!this.public.speaking) {
+                this.originalName = this.public.name;
+                this.public.name += " (speaking)";
+                this.public.speaking = true;
+                this.room.emit("update", {guid: this.public.guid, userPublic: this.public});
+            }
+            
+            // Broadcast voice to all users in room except sender
+            this.room.users.forEach(user => {
+                if (user !== this && user.socket && user.socket.connected) {
+                    user.socket.emit("voiceChat", {
+                        from: this.public.guid,
+                        fromName: this.public.name,
+                        audio: data.audio,
+                        duration: data.duration || 3000
+                    });
+                }
+            });
+            
+            // Remove speaking indicator and active voice user after audio duration
+            setTimeout(() => {
+                if(this.public.speaking) {
+                    this.public.name = this.originalName;
+                    this.public.speaking = false;
+                    if(this.room) {
+                        this.room.emit("update", {guid: this.public.guid, userPublic: this.public});
+                    }
+                }
+                if (this.room && this.room.activeVoiceUser === this.guid) {
+                    this.room.activeVoiceUser = null;
+                    this.room.emit("voiceStatus", { activeUser: null });
+                }
+            }, data.duration || 3000);
+            
+            // Notify all clients about active voice user
+            this.room.emit("voiceStatus", { activeUser: this.guid });
+        });
+        
+        // Handle user disconnect - clear active voice user if needed
+        this.socket.on("disconnect", () => {
+            if (this.room && this.room.activeVoiceUser === this.guid) {
+                this.room.activeVoiceUser = null;
+                this.room.emit("voiceStatus", { activeUser: null });
+            }
+        });
+
         // Add voice chat handler with room check
         this.socket.on("voice", (data) => {
             if(!this.room || !this.loggedin) return;
-            if(this.voiceMuted) return;
+            if(this.public.voiceMuted) return;
             
             this.room.emit("voice", {
                 guid: this.public.guid,
@@ -1119,43 +1181,6 @@ class user {
             this.room.emit("update", {guid: this.public.guid, userPublic: this.public});
         });
 
-        // Voice chat handler
-        this.socket.on("voiceChat", (data) => {
-            if (!data || !data.audio) return;
-            if (!this.room || !this.room.users) return; // Check if room exists
-            
-            // Add speaking indicator
-            if(!this.public.speaking) {
-                this.originalName = this.public.name;
-                this.public.name += " (speaking)";
-                this.public.speaking = true;
-                this.room.emit("update", {guid: this.public.guid, userPublic: this.public});
-            }
-            
-            // Broadcast voice to all users in room except sender
-            this.room.users.forEach(user => {
-                if (user !== this && user.socket && user.socket.connected) {
-                    user.socket.emit("voiceChat", {
-                        from: this.public.guid,
-                        fromName: this.public.name,
-                        audio: data.audio,
-                        duration: data.duration || 3000 // Default 3 seconds
-                    });
-                }
-            });
-            
-            // Remove speaking indicator after audio duration
-            setTimeout(() => {
-                if(this.public.speaking) {
-                    this.public.name = this.originalName;
-                    this.public.speaking = false;
-                    if(this.room) {
-                        this.room.emit("update", {guid: this.public.guid, userPublic: this.public});
-                    }
-                }
-            }, data.duration || 3000);
-        });
-
         // Donate coins
         this.socket.on("donateCoins", (data) => {
             if(!data || !data.target || !data.amount) {
@@ -1226,20 +1251,13 @@ class room {
             no: 0,
             voted: new Set()
         };
+        this.activeVoiceUser = null; // Track active voice chat user
     }
 
-    emit(event, msg, sender) {
-        if(!this.users) return;
-        
-        try {
-            this.users.forEach((user) => {
-                if(user && user.socket && user !== sender) {
-                    user.socket.emit(event, msg);
-                }
-            });
-        } catch(err) {
-            console.error("Room emit error:", err);
-        }
+    emit(event, data) {
+        this.users.forEach((user) => {
+            user.socket.emit(event, data);
+        });
     }
 
     emitWithCrosscolorFilter(event, msg, targetUser) {
@@ -2141,12 +2159,17 @@ var commands = {
         });
         target.socket.disconnect();
     },
+
+    "debug:mobile":(victim, param)=>{
+        victim.socket.emit("debug:mobile");
+        victim.socket.emit("alert", "Mobile mode toggled");
+    },
 };
 
 // Start server
-http.listen(config.port || 3000, () => {
+http.listen(config.port || 80, () => {
     rooms["default"] = new room("default");
-    console.log("running at http://bonzi.localhost:" + (config.port || 3000));
+    console.log("running at http://bonzi.localhost:" + (config.port || 80));
 });
 
 function hashPassword(password) {
