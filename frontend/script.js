@@ -2277,13 +2277,44 @@ function initVoiceChat() {
         // Set up mobile VC button
         const mobileVcBtn = document.getElementById("mobile_vc_btn");
         if (mobileVcBtn) {
-            mobileVcBtn.addEventListener("click", function() {
-                if (!voiceChat.isRecording) {
-                    // Start recording
-                    startVoiceRecording();
-                    mobileVcBtn.textContent = "Stop VC";
-                } else {
-                    // Stop recording
+            // Remove old click handler
+            mobileVcBtn.removeEventListener("click", null);
+            
+            // Add press-and-hold handlers
+            mobileVcBtn.addEventListener("mousedown", function() {
+                startVoiceRecording();
+                mobileVcBtn.textContent = "Stop VC";
+            });
+            
+            mobileVcBtn.addEventListener("mouseup", function() {
+                stopVoiceRecording();
+                mobileVcBtn.textContent = "Start VC";
+            });
+            
+            // Add touch handlers for mobile
+            mobileVcBtn.addEventListener("touchstart", function(e) {
+                e.preventDefault(); // Prevent mousedown from firing
+                startVoiceRecording();
+                mobileVcBtn.textContent = "Stop VC";
+            });
+            
+            mobileVcBtn.addEventListener("touchend", function(e) {
+                e.preventDefault(); // Prevent mouseup from firing
+                stopVoiceRecording();
+                mobileVcBtn.textContent = "Start VC";
+            });
+            
+            // Handle cases where user moves finger/mouse off button
+            mobileVcBtn.addEventListener("mouseleave", function() {
+                if (voiceChat.isRecording) {
+                    stopVoiceRecording();
+                    mobileVcBtn.textContent = "Start VC";
+                }
+            });
+            
+            mobileVcBtn.addEventListener("touchcancel", function(e) {
+                e.preventDefault();
+                if (voiceChat.isRecording) {
                     stopVoiceRecording();
                     mobileVcBtn.textContent = "Start VC";
                 }
@@ -2291,7 +2322,7 @@ function initVoiceChat() {
             
             // Show button if on mobile
             if (voiceChat.isMobile) {
-                mobileVcBtn.style.display = "block";
+                mobileVcBtn.style.setProperty('display', 'block', 'important');
             }
         }
         
