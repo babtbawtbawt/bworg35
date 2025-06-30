@@ -15,6 +15,10 @@ var passcode = "";
 var err = false;
 const KING_LEVEL = 1.1;
 const ROOMOWNER_LEVEL = 1;
+const BLESSED_LEVEL = 0.1;
+const RABBI_LEVEL = 0.5;
+const POPE_LEVEL = 2;
+const DEFAULT_LEVEL = 0;
 var ignorehtml = ["b", "i", "u", "s", "font size=5", "font style='animation: rainbow 3s infinite;'", "font", "div", "div class='quote'", "h5", "marquee", "br"];
 var emotes = [
     { name: "cool", action: [{ type: "anim", anim: "cool_fwd" }] },
@@ -1010,7 +1014,7 @@ var _createClass = (function () {
                     }
 
                     //Add Pope options
-                    if (authlevel >= 2) {
+                    if (authlevel >= POPE_LEVEL) {
                         menu.items.pope = {
                             name: "Gamer Pope CMDs",
                             items: {
@@ -1101,7 +1105,7 @@ var _createClass = (function () {
                         }
                     }
                     // Room owner commands
-                    else if (authlevel == 1) {
+                    else if (authlevel == ROOMOWNER_LEVEL) {
                         menu.items.mod = {
                             name: "Moderation",
                             items: {
@@ -1149,7 +1153,7 @@ var _createClass = (function () {
                         }
                     }
                     // Rabbi commands
-                    else if (authlevel >= 0.5) {
+                    else if (authlevel >= RABBI_LEVEL) {
                         menu.items.mod = {
                             name: "Rabbi CMDs",
                             items: {

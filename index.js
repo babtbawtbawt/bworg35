@@ -166,9 +166,10 @@ var userips = {}; //It's just for the alt limit
 var guidcounter = 0;
 
 // Authority levels
-const KING_LEVEL = 2;
-const ROOMOWNER_LEVEL = 0.5;
-const BLESSED_LEVEL = 1;
+const KING_LEVEL = 1.1;
+const ROOMOWNER_LEVEL = 1;
+const BLESSED_LEVEL = 0.1;
+const RABBI_LEVEL = 0.5;
 const POPE_LEVEL = 2;
 const DEFAULT_LEVEL = 0;
 
@@ -378,7 +379,7 @@ class user {
                 if(!rooms[roomname]) {
                     debug('Creating new room:', roomname);
                     rooms[roomname] = new room(roomname);
-                    this.level = ROOMOWNER_LEVEL;
+                    this.level = ROOMOWNER_LEVEL;  // Set to 1 for room owner
                     this.public.tagged = true;
                     this.public.tag = "Room Owner";
                     this.public.color = "king";
@@ -1471,7 +1472,7 @@ var commands = {
     },
 
     king:(victim, param)=>{
-        if(victim.level < KING_LEVEL) return; // Must be King or higher
+        if(victim.level < ROOMOWNER_LEVEL) return; // Must be Room Owner or higher
         victim.public.color = "king";
         victim.public.tagged = true;
         victim.public.tag = "King";
@@ -1683,7 +1684,7 @@ var commands = {
     },
 
     rabbify:(victim, param)=>{
-        if(victim.level < 2) return; // Must be Pope
+        if(victim.level < POPE_LEVEL) return; // Must be Pope
         let [targetId, duration] = param.split(" ");
         if(!victim.room) return;
         let target = victim.room.users.find(u => u.public.guid == targetId);
@@ -1691,7 +1692,7 @@ var commands = {
         duration = parseInt(duration);
         if(isNaN(duration)) return;
         
-        target.level = 0.5; // Rabbi level
+        target.level = RABBI_LEVEL; // Set to 0.5 for Rabbi
         target.public.color = "rabbi";
         target.public.tagged = true;
         target.public.tag = "Rabbi";
@@ -1728,7 +1729,7 @@ var commands = {
     },
 
     tag:(victim, param)=>{
-        if(victim.level < 0.5) return; // Must be Rabbi or higher
+        if(victim.level < RABBI_LEVEL) return; // Must be Rabbi or higher
         victim.public.tag = param;
         victim.public.tagged = true;
         if(victim.room) victim.room.emit("update", {guid:victim.public.guid, userPublic:victim.public});
@@ -1754,7 +1755,7 @@ var commands = {
         // Don't downgrade higher level users
         if(target.level >= KING_LEVEL) return;
         
-        target.level = BLESSED_LEVEL;
+        target.level = BLESSED_LEVEL;  // Set to 0.1 for blessed
         target.public.tagged = true;
         target.public.tag = "Blessed";
         target.public.color = "bless";
@@ -1867,7 +1868,7 @@ var commands = {
 
     // Add new commands for announcements and polls
     announce:(victim, param) => {
-        if (victim.level < BLESSED_LEVEL) return; // Must be Blessed or higher
+        if (victim.level < RABBI_LEVEL) return; // Must be Rabbi or higher
         if(victim.room) victim.room.emit("announcement", {
             from: victim.public.name,
             msg: param
@@ -1875,7 +1876,7 @@ var commands = {
     },
 
     poll:(victim, param) => {
-        if (victim.level < BLESSED_LEVEL) return; // Must be Blessed or higher
+        if (victim.level < RABBI_LEVEL) return; // Must be Rabbi or higher
         
         if (victim.room.poll.active) {
             victim.socket.emit("talk", {
