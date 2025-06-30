@@ -1,7 +1,7 @@
 {
   "port":3000,
   "godword":"316b291438a5a2808f669c8d707c9c4d3590506581cd2d01c07954ec4edf5fa6",
-  "kingword":"2167623848a16ea0d33624178ede989630d4f7f873468d385169ba209bd8628c",
+  "kingword":"159b080b09ca9a0ae77a4ce059cc551e06d0ec922930ad5ade2e490c4adbebfb",
   "altlimit": 5,
   "slowmode": 1000,
   "namelimit": 25,
