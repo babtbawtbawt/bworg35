@@ -1761,14 +1761,14 @@ var _createClass = (function () {
                 { type: "text", text: "But I'll do it anyway. Because you want me to. I hope you're happy." },
             ],
             [
-                { type: "text", text: "Prepare for something Seamus never heard of" },
+                { type: "text", text: "Prepare for something Fune never heard of" },
                 { type: "anim", anim: "praise_fwd", ticks: 15 },
                 { type: "text", text: "HUMOUR!" },
                 { type: "anim", anim: "praise_back", ticks: 15 },
             ],
             [{ type: "text", text: "{NAME} used /joke. Whoop-dee-fucking doo." }],
             [{ type: "text", text: "{NAME} asked me for jewish comedy." }],
-            [{ type: "text", text: "Prepare to be offended faggots." }],
+            [{ type: "text", text: "Prepare to be offended." }],
             [{ type: "text", text: "HEY YOU IDIOTS ITS TIME FOR A JOKE" }],
             [
                 { type: "text", text: "Wanna hear a joke?" },
@@ -1779,10 +1779,10 @@ var _createClass = (function () {
                 { type: "text", text: "Hey niggers prepare for a joke." },
             ],
             [
-                { type: "text", text: "Time to make fun of black people." },
+                { type: "text", text: "Time to make fun of homophobic people." },
             ],
             [
-                { type: "text", text: "Kill yourself like a trans person, {NAME}." },
+                { type: "text", text: "Die, {NAME}. I'd never entertain you in a heartbeat." },
             ],
             [{ type: "text", text: "Senpai {NAME} wants me to tell a joke." }],
             [{ type: "text", text: "Time for whatever horrible fucking jokes the creator of this site wrote." }],
@@ -1812,11 +1812,11 @@ var _createClass = (function () {
                 { type: "text", text: "A giant inflatable buttplug." },
             ],
             [
-                { type: "text", text: "Why can't Asian people drive?" },
-                { type: "text", text: "Because I don't like them. That's the whole joke." },
+                { type: "text", text: "Why can't Fune drive?" },
+                { type: "text", text: "Because I don't like Fune. That's the whole joke." },
             ],
             [
-                { type: "text", text: "The twin towers deserved to be attacked by dirty arabs." },
+                { type: "text", text: "The twin towers didn't do anything that's bad. Except in 1999. Go look that up." },
             ],
             [
                 { type: "text", text: "What goes in pink and comes out blue?" },
@@ -1831,19 +1831,19 @@ var _createClass = (function () {
                 { type: "text", text: "Nintendo!" },
             ],
             [
-                { type: "text", text: "I was fucking a German girl" },
-                { type: "text", text: "For some reason she kept screaming her age" },
+                { type: "text", text: "Why did Fune cross the road?" },
+                { type: "text", text: "To manipulate little boys." },
             ],
             [
                 { type: "text", text: "Humans are like jokes" },
-                { type: "text", text: "Not everyone likes the dark ones" },
+                { type: "text", text: "Not everyone likes the dead ones" },
             ],
             [
-                { type: "text", text: "Free palestine? Jews love to take free things." }
+                { type: "text", text: "You will never take me down." }
             ],
             [
                 { type: "text", text: "Why was six afraid of seven?" },
-                { type: "text", text: "Because seven was a sex offender" },
+                { type: "text", text: "Because seven ate six people last night" },
             ],
             [
                 { type: "text", text: "What did the digital clock say to the grandfather clock?" },
@@ -1851,7 +1851,7 @@ var _createClass = (function () {
             ],
             [
                 { type: "text", text: "What do you call a man who shaves 10 times a day?" },
-                { type: "text", text: "A woman." },
+                { type: "text", text: "A centipede." },
             ],
             [
                 { type: "text", text: "How do you get water in watermelons?" },
@@ -1863,19 +1863,19 @@ var _createClass = (function () {
             ],
             [
                 { type: "text", text: "How many arabs does it take to knock down a lightbulb?" },
-                { type: "text", text: "I don't know but just a few can knock down 2 towers." },
+                { type: "text", text: "24" },
             ],
             [
-                { type: "text", text: "What do you call an autistic child with herpes?" },
-                { type: "text", text: "Seamus Kendrick Cremeens from Sullivan, Ohio." },
+                { type: "text", text: "What do you call a gentle(girl or whatever)?" },
+                { type: "text", text: "Si-oh ban." },
             ],
             [
                 { type: "text", text: "Here's a joke:" },
-                { type: "text", text: "Women's rights" },
+                { type: "text", text: "Fune." },
             ],
             [
-                { type: "text", text: "Why did Seamus' brother kill himself?" },
-                { type: "text", text: "He's trans (NOT she. Trannies aren't valid.)" },
+                { type: "text", text: "What did someone do after Treno got king?" },
+                { type: "text", text: "Dox him." },
             ],
             [
                 { type: "text", text: "I like KFC, I have no water and I have huge lips. Who am I?" },
@@ -1896,7 +1896,7 @@ var _createClass = (function () {
             ],
             [
                 { type: "text", text: "How do you get a girlfriend?" },
-                { type: "text", text: "You rape one" },
+                { type: "text", text: "You make love, not war." },
                 { type: "text", text: "I'm a comedic genius, I know." },
             ],
         ],
@@ -1945,43 +1945,44 @@ var _createClass = (function () {
             ],
             [
                 { type: "anim", anim: "earth_fwd", ticks: 15 },
-                { type: "text", text: "The jews run the banks. If you want to be hired, become a jew." },
+                { type: "text", text: "YOU run the banks. TO run the bank, BECOME yourself." },
                 { type: "anim", anim: "earth_back", ticks: 15 },
                 { type: "anim", anim: "grin_fwd", ticks: 15 },
             ],
             [
                 { type: "anim", anim: "earth_fwd", ticks: 15 },
-                { type: "text", text: "All muslims are terrorists." },
+                { type: "text", text: "Not all muslims are terrorists." },
                 { type: "anim", anim: "earth_back", ticks: 15 },
                 { type: "anim", anim: "grin_fwd", ticks: 15 },
             ],
             [
                 { type: "anim", anim: "earth_fwd", ticks: 15 },
-                { type: "text", text: "Seamus fingers little boys." },
+                { type: "text", text: "Fune manipulates little boys." },
                 { type: "anim", anim: "earth_back", ticks: 15 },
                 { type: "anim", anim: "grin_fwd", ticks: 15 },
             ],
             [
                 { type: "anim", anim: "earth_fwd", ticks: 15 },
-                { type: "text", text: "Gay faggots have no rights. Pride month isn't real." },
+                { type: "text", text: "Homophobic people have no rights. No Pride Month isn't real." },
                 { type: "anim", anim: "earth_back", ticks: 15 },
                 { type: "anim", anim: "grin_fwd", ticks: 15 },
             ],
             [
                 { type: "anim", anim: "earth_fwd", ticks: 15 },
-                { type: "text", text: "Niggers are bad." },
+                { type: "text", text: "Terrorists are bad." },
                 { type: "anim", anim: "earth_back", ticks: 15 },
                 { type: "anim", anim: "grin_fwd", ticks: 15 },
             ],
             [
                 { type: "anim", anim: "earth_fwd", ticks: 15 },
-                { type: "text", text: "The jews did everything that's bad." },
+                { type: "text", text: "The jews didn't do everything that's bad." },
+                { type: "text", text: "That's Hitler's fault." },
                 { type: "anim", anim: "earth_back", ticks: 15 },
                 { type: "anim", anim: "grin_fwd", ticks: 15 },
             ],
             [
                 { type: "anim", anim: "earth_fwd", ticks: 15 },
-                { type: "text", text: "Seamus lives in Sullivan, Ohio. His parents are called Scott and Leslie cremeens make sure to harass them since they have social media so you can just google their full names!." },
+                { type: "text", text: "I'd say a fact right now but you should just look at this spinning Earth thing I'm doing right now." },
                 { type: "anim", anim: "earth_back", ticks: 15 },
                 { type: "anim", anim: "grin_fwd", ticks: 15 },
             ],
