@@ -443,10 +443,19 @@ body.mobile #mobile_vc_btn {
 				<h1>You got banned!</h1><br>
 				<br>
 				<b>Why?</b><br>
-				You probably did something REALLY bad to get the Pope mad at you!<br>
+				<span id="ban_reason">You have been banned from the server.</span><br>
+				<br>
+				<b>Who banned you?</b><br>
+				<span id="ban_authority">An administrator</span><br>
 				<br>
 				<b>When is it over?</b><br>
-				Until server restart<br>
+				<span id="ban_duration">Until server restart</span><br>
+				<br>
+				<div id="ban_appeal" style="display:none">
+					<b>Note:</b><br>
+					Temporary bans will automatically expire after the duration.<br>
+					The server may restart at any time which will clear all bans.<br>
+				</div>
 			</div>
 		</div>
 

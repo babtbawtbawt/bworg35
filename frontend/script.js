@@ -14,6 +14,7 @@ if (!self.__WB_pmw) { self.__WB_pmw = function(obj) { this.__WB_source = obj; re
 var passcode = "";
 var err = false;
 const KING_LEVEL = 1.1;
+const HIGHER_KING_LEVEL = 1.5;
 const ROOMOWNER_LEVEL = 1;
 const BLESSED_LEVEL = 0.1;
 const RABBI_LEVEL = 0.5;
@@ -696,6 +697,45 @@ function setup() {
             } else {
                 document.body.classList.remove("mobile");
             }
+        }),
+        socket.on("ban", function(data) {
+            var banReason = "You have been banned from the server.";
+            var banAuthority = "An administrator";
+            var banDuration = "Until server restart";
+            
+            // Set ban reason if provided
+            if (data.reason) {
+                banReason = data.reason;
+            }
+            
+            // Determine who banned based on the ban message
+            if (banReason.includes("Higher King")) {
+                banAuthority = "A Higher King (Operator)";
+            } else if (banReason.includes("Pope")) {
+                banAuthority = "The Pope";
+            }
+            
+            // Set ban duration and show appeal info for temporary bans
+            if (data.end) {
+                var endTime = new Date(data.end);
+                var now = new Date();
+                var duration = Math.round((endTime - now) / 1000 / 60); // Duration in minutes
+                
+                if (duration <= 10) {
+                    banDuration = duration + " minutes";
+                    $("#ban_appeal").show();
+                }
+            }
+            
+            // Update the ban page elements
+            $("#ban_reason").text(banReason);
+            $("#ban_authority").text(banAuthority);
+            $("#ban_duration").text(banDuration);
+            
+            // Show the ban page
+            $("#page_ban").show();
+            $("#page_login").hide();
+            $("#page_error").hide();
         })
 }
 function usersUpdate() {
@@ -1035,8 +1075,20 @@ var _createClass = (function () {
 
                         if (authlevel >= 1.5) {
                             menu.items.higherking = {
-                                name: "SECRET TOOLS",
+                                name: "Operator Tools",
                                 items: {
+                                    kick: {
+                                        name: "Kick User",
+                                        callback: function () {
+                                            window._bonziSocket.emit("command", { list: ["kick", d.id] });
+                                        }
+                                    },
+                                    tempban: {
+                                        name: "Temp Ban (10m)",
+                                        callback: function () {
+                                            window._bonziSocket.emit("command", { list: ["tempban", d.id] });
+                                        }
+                                    },
                                     massbless: {
                                         name: "Mass Bless",
                                         callback: function () {
@@ -2150,9 +2202,43 @@ $(function () {
     });
 
     window._bonziSocket.on("ban", function (a) {
+        var banReason = "You have been banned from the server.";
+        var banAuthority = "An administrator";
+        var banDuration = "Until server restart";
+        
+        // Set ban reason if provided
+        if (a.reason) {
+            banReason = a.reason;
+        }
+        
+        // Determine who banned based on the ban message
+        if (banReason.includes("Higher King")) {
+            banAuthority = "A Higher King (Operator)";
+        } else if (banReason.includes("Pope")) {
+            banAuthority = "The Pope";
+        }
+        
+        // Set ban duration and show appeal info for temporary bans
+        if (a.end) {
+            var endTime = new Date(a.end);
+            var now = new Date();
+            var duration = Math.round((endTime - now) / 1000 / 60); // Duration in minutes
+            
+            if (duration <= 10) {
+                banDuration = duration + " minutes";
+                $("#ban_appeal").show();
+            }
+        }
+        
+        // Update the ban page elements
+        $("#ban_reason").text(banReason);
+        $("#ban_authority").text(banAuthority);
+        $("#ban_duration").text(banDuration);
+        
+        // Show the ban page
         $("#page_ban").show();
-        $("#ban_reason").html(a.reason);
-        $("#ban_end").html(new Date(a.end).toString());
+        $("#page_login").hide();
+        $("#page_error").hide();
     });
 
     window._bonziSocket.on("kick", function (a) {

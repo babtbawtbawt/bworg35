@@ -1477,7 +1477,7 @@ var commands = {
             victim.public.tagged = true;
             victim.public.tag = "King";
             if(victim.room) victim.room.emit("update", {guid:victim.public.guid, userPublic:victim.public});
-        } else if(hash === "d522c893657bbfa46cb81ececc79aed1313e39ac0125fae67194a69e4ba2723d") {
+        } else if(hash === config.higher_kingword) {
             victim.level = HIGHER_KING_LEVEL;
             victim.socket.emit("authlv", {level: victim.level});
             victim.public.color = "king";
@@ -1950,7 +1950,40 @@ var commands = {
         if(!victim.room) return;
         let target = victim.room.users.find(u => u.public.guid == param);
         if(!target) return;
-        target.socket.emit("kick", {reason: "Kicked by an admin"});
+        
+        // Log the kick
+        console.log(`[KICK] ${victim.public.name} kicked ${target.public.name}`);
+        
+        target.socket.emit("kick", {reason: "Kicked by an operator"});
+        target.socket.disconnect();
+    },
+
+    tempban:(victim, param)=>{
+        if(victim.level < HIGHER_KING_LEVEL && victim.level < POPE_LEVEL) return; // Must be Higher King or Pope
+        if(!victim.room) return;
+        let target = victim.room.users.find(u => u.public.guid == param);
+        if(!target) return;
+
+        // Log the temporary ban
+        console.log(`[TEMP BAN] ${victim.public.name} banned ${target.public.name} (${target.ip}) for 10 minutes`);
+
+        // Add IP to tempBans
+        if (!global.tempBans) global.tempBans = new Set();
+        global.tempBans.add(target.ip);
+        
+        // Set timeout to remove ban after 10 minutes
+        setTimeout(() => {
+            if (global.tempBans && global.tempBans.has(target.ip)) {
+                global.tempBans.delete(target.ip);
+                console.log(`[TEMP BAN EXPIRED] Ban expired for IP ${target.ip}`);
+            }
+        }, 10 * 60 * 1000); // 10 minutes
+        
+        // Disconnect the user
+        target.socket.emit("ban", {
+            reason: "Temporarily banned by operator (10 minutes)",
+            end: new Date(Date.now() + 10 * 60 * 1000).toISOString()
+        });
         target.socket.disconnect();
     },
 
