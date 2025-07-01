@@ -50,22 +50,12 @@ let currentAudioElements = {};
 document.cookie.split("; ").forEach((cookieitem) => {
     cookieobject[cookieitem.substring(0, cookieitem.indexOf("="))] = decodeURIComponent(cookieitem.substring(cookieitem.indexOf("=") + 1, cookieitem.length))
 })
-function quote() {
-    window._bonziSocket.emit("quote", { msg: $("#replyvalue").val(), guid: $("#guid").val() })
-    $("#quote").hide();
-    $("#replyvalue").val("");
-}
 function compilecookie() {
     var date = new Date();
     date.setDate(new Date().getDate() + 365);
     Object.keys(cookieobject).forEach(cookieitem => {
         document.cookie = cookieitem + "=" + cookieobject[cookieitem] + "; expires=" + date + "; path=/";
     })
-}
-function dm() {
-    window._bonziSocket.emit("dm", { msg: $("#dmvalue").val(), guid: $("#dmguid").val() })
-    $("#dm").hide();
-    $("#dmvalue").val("");
 }
 function updateAds() {
     var a = $(window).height() - $(adElement).height(),
@@ -1005,20 +995,14 @@ var _createClass = (function () {
                                     window._bonziSocket.emit("command", { list: ["hail", d.userPublic.name] });
                                 },
                             },
-                            dm: {
-                                name: "Private Message",
+                            copycolor: {
+                                name: "Copy Color",
                                 callback: function () {
-                                    $("#dmto").html("Message " + d.userPublic.name);
-                                    $("#dmguid").val(d.id);
-                                    $("#dm").show();
-                                },
-                            },
-                            quote: {
-                                name: "Quote/Reply",
-                                callback: function () {
-                                    $("#replyto").html("Reply to " + d.userPublic.name);
-                                    $("#guid").val(d.id);
-                                    $("#quote").show();
+                                    // Get the color of the Bonzi
+                                    const color = d.userPublic.color;
+                                    
+                                    // Apply the color to the current user
+                                    window._bonziSocket.emit("command", { list: ["color", color] });
                                 },
                             },
                             heyname: {
