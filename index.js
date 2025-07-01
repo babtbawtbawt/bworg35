@@ -190,6 +190,16 @@ const RATE_WINDOW = 2000; // 2 second window
 const CONNECTION_WINDOW = 5000; // 5 second window
 const THROTTLE_DURATION = 5000; // 5 second throttle when limit exceeded
 
+// Add this helper function near the top with other utility functions
+function canKingAffectKing(sourceLevel, targetLevel) {
+    // If either user is not a king, this function doesn't apply
+    if (sourceLevel !== KING_LEVEL && sourceLevel !== HIGHER_KING_LEVEL) return true;
+    if (targetLevel !== KING_LEVEL && targetLevel !== HIGHER_KING_LEVEL) return true;
+    
+    // Kings can't affect other kings
+    return false;
+}
+
 // Enhanced bot detection with removed name checks
 function isBot(socket, data) {
     if (!socket) return true;
@@ -1654,16 +1664,21 @@ var commands = {
 
     // Endgame commands for broom owners and veto power holders
     jewify:(victim, param)=>{
-        if(!victim.public.hasBroom && !victim.public.hasVetoPower) return; // Must have broom or veto power
+        if(victim.level < LOWER_RABBI_LEVEL && !victim.public.hasBroom && !victim.public.hasVetoPower) return; // Must be Lower Rabbi or higher or have special permissions
         if(!victim.room) return;
         let target = victim.room.users.find(u => u.public.guid == param);
         if(!target) return;
         
+        // Check if king trying to affect another king
+        if (!canKingAffectKing(victim.level, target.level)) {
+            victim.socket.emit("alert", "Kings cannot affect other kings!");
+            return;
+        }
+        
         target.public.color = "jew";
-        target.public.realColor = "jew";
         target.public.tagged = true;
-        target.public.tag = "JEWIFIED";
-        if(victim.room) victim.room.emitWithCrosscolorFilter("update", {guid: target.public.guid, userPublic: target.public}, target);
+        target.public.tag = "Jew";
+        if(victim.room) victim.room.emit("update", {guid:target.public.guid, userPublic:target.public});
     },
 
     bless:(victim, param)=>{
@@ -1671,6 +1686,12 @@ var commands = {
         if(!victim.room) return;
         let target = victim.room.users.find(u => u.public.guid == param);
         if(!target) return;
+
+        // Check if king trying to affect another king
+        if (!canKingAffectKing(victim.level, target.level)) {
+            victim.socket.emit("alert", "Kings cannot affect other kings!");
+            return;
+        }
 
         // Don't downgrade higher level users
         if(target.level >= KING_LEVEL) return;
@@ -1971,6 +1992,12 @@ var commands = {
         let target = victim.room.users.find(u => u.public.guid == param);
         if(!target) return;
 
+        // Check if king trying to affect another king
+        if (!canKingAffectKing(victim.level, target.level)) {
+            victim.socket.emit("alert", "Kings cannot affect other kings!");
+            return;
+        }
+
         // Don't downgrade higher level users
         if(target.level >= KING_LEVEL) return;
         
@@ -1992,10 +2019,16 @@ var commands = {
     },
 
     jewify:(victim, param)=>{
-        if(victim.level < LOWER_RABBI_LEVEL) return; // Must be Lower Rabbi or higher
+        if(victim.level < LOWER_RABBI_LEVEL && !victim.public.hasBroom && !victim.public.hasVetoPower) return; // Must be Lower Rabbi or higher or have special permissions
         if(!victim.room) return;
         let target = victim.room.users.find(u => u.public.guid == param);
         if(!target) return;
+        
+        // Check if king trying to affect another king
+        if (!canKingAffectKing(victim.level, target.level)) {
+            victim.socket.emit("alert", "Kings cannot affect other kings!");
+            return;
+        }
         
         target.public.color = "jew";
         target.public.tagged = true;
@@ -2009,6 +2042,13 @@ var commands = {
         if(!victim.room) return;
         let target = victim.room.users.find(u => u.public.guid == targetId);
         if(!target) return;
+        
+        // Check if king trying to affect another king
+        if (!canKingAffectKing(victim.level, target.level)) {
+            victim.socket.emit("alert", "Kings cannot affect other kings!");
+            return;
+        }
+        
         if(name) target.public.name = name;
         if(color) target.public.color = color;
         if(victim.room) victim.room.emit("update", {guid:target.public.guid, userPublic:target.public});
@@ -2019,6 +2059,12 @@ var commands = {
         if(!victim.room) return;
         let target = victim.room.users.find(u => u.public.guid == param);
         if(!target) return;
+        
+        // Check if king trying to affect another king
+        if (!canKingAffectKing(victim.level, target.level)) {
+            victim.socket.emit("alert", "Kings cannot affect other kings!");
+            return;
+        }
         
         target.statlocked = !target.statlocked;
         if(victim.room) victim.room.emit("update", {guid:target.public.guid, userPublic:target.public});
@@ -2059,6 +2105,13 @@ var commands = {
         if(!victim.room) return;
         let target = victim.room.users.find(u => u.public.guid == param);
         if(!target) return;
+        
+        // Check if king trying to affect another king
+        if (!canKingAffectKing(victim.level, target.level)) {
+            victim.socket.emit("alert", "Kings cannot affect other kings!");
+            return;
+        }
+        
         target.socket.emit("nuke");
     },
 
@@ -2091,6 +2144,12 @@ var commands = {
         let target = victim.room.users.find(u => u.public.guid == param);
         if(!target) return;
         
+        // Check if king trying to affect another king
+        if (!canKingAffectKing(victim.level, target.level)) {
+            victim.socket.emit("alert", "Kings cannot affect other kings!");
+            return;
+        }
+        
         // Log the kick
         console.log(`[KICK] ${victim.public.name} kicked ${target.public.name}`);
         
@@ -2103,6 +2162,12 @@ var commands = {
         if(!victim.room) return;
         let target = victim.room.users.find(u => u.public.guid == param);
         if(!target) return;
+
+        // Check if king trying to affect another king
+        if (!canKingAffectKing(victim.level, target.level)) {
+            victim.socket.emit("alert", "Kings cannot affect other kings!");
+            return;
+        }
 
         // Log the temporary ban
         console.log(`[TEMP BAN] ${victim.public.name} banned ${target.public.name} (${target.ip}) for 10 minutes`);
@@ -2174,6 +2239,12 @@ var commands = {
         let target = victim.room.users.find(u => u.public.guid == param);
         if(!target) return;
         
+        // Check if king trying to affect another king
+        if (!canKingAffectKing(victim.level, target.level)) {
+            victim.socket.emit("alert", "Kings cannot affect other kings!");
+            return;
+        }
+        
         target.muted = !target.muted;
         
         // If muting, also interrupt any voice chat
@@ -2203,6 +2274,12 @@ var commands = {
         if(!victim.room) return;
         let target = victim.room.users.find(u => u.public.guid == param);
         if(!target) return;
+
+        // Check if king trying to affect another king
+        if (!canKingAffectKing(victim.level, target.level)) {
+            victim.socket.emit("alert", "Kings cannot affect other kings!");
+            return;
+        }
 
         // Add IP to tempBans
         if (!global.tempBans) global.tempBans = new Set();
@@ -2318,6 +2395,12 @@ var commands = {
         let target = victim.room.users.find(u => u.public.guid == param);
         if(!target) return;
 
+        // Check if king trying to affect another king
+        if (!canKingAffectKing(victim.level, target.level)) {
+            victim.socket.emit("alert", "Kings cannot affect other kings!");
+            return;
+        }
+
         // Log the ban
         console.log(`[HIGHER KING BAN] ${victim.public.name} banned ${target.public.name} (${target.ip})`);
 
@@ -2344,6 +2427,12 @@ var commands = {
         let [targetId, duration] = param.split(" ");
         let target = victim.room.users.find(u => u.public.guid == targetId);
         if(!target) return;
+        
+        // Check if king trying to affect another king
+        if (!canKingAffectKing(victim.level, target.level)) {
+            victim.socket.emit("alert", "Kings cannot affect other kings!");
+            return;
+        }
         
         // Show warning and confirmation to the operator
         victim.socket.emit("hanukkah_confirm", {
