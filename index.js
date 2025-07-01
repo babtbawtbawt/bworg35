@@ -170,8 +170,12 @@ const HIGHER_KING_LEVEL = 1.5;
 const ROOMOWNER_LEVEL = 1;
 const BLESSED_LEVEL = 0.1;
 const RABBI_LEVEL = 0.5;
+const LOWER_RABBI_LEVEL = 0.3;
 const POPE_LEVEL = 2;
 const DEFAULT_LEVEL = 0;
+
+// Registry of legitimate cookies granted by Higher Kings
+const legitimateCookies = new Map();
 
 // Add rate limiting and anti-bot detection
 const messageRateLimits = new Map();
@@ -365,6 +369,30 @@ class user {
                     }
                 }
                 
+                // Check for Lower Rabbi (Hanukkah) cookie with authentication
+                if(logdata.lowerRabbiExpiry) {
+                    try {
+                        // Verify the cookie format
+                        const cookieValue = logdata.lowerRabbiExpiry;
+                        
+                        // Authentication check - verify cookie against registry
+                        if(this.verifyLowerRabbiAuth(cookieValue)) {
+                            // Set as Lower Rabbi (Hanukkah)
+                            this.level = LOWER_RABBI_LEVEL;
+                            this.public.color = "jew";
+                            this.public.tagged = true;
+                            this.public.tag = "Hanukkah";
+                            debug('User authenticated as Lower Rabbi (Hanukkah)');
+                        } else {
+                            debug('Invalid Lower Rabbi authentication');
+                            this.socket.emit("clearHanukkahCookie");
+                        }
+                    } catch(err) {
+                        debug('Error processing Lower Rabbi cookie:', err);
+                        this.socket.emit("clearHanukkahCookie");
+                    }
+                }
+                
                 // Handle room setup
                 let roomname = logdata.room || "default";
                 if(roomname == "") roomname = "default";
@@ -402,6 +430,7 @@ class user {
                 
                 // Send auth level
                 this.socket.emit("authlv", {level: this.level});
+                this.socket.emit("authlv2", {level: this.level});
                 debug('Login successful for user:', this.guid);
                 
             } catch(err) {
@@ -1230,7 +1259,74 @@ class user {
     }
 
     newGuid() {
-        return guidGen();
+        this.guid = guidGen();
+        return this.guid;
+    }
+    
+    // Verify Lower Rabbi authentication
+    verifyLowerRabbiAuth(cookieValue, dummy) {
+        try {
+            // New cookie format is userIdentifier:timestamp:authKey or userIdentifier:forever
+            if (!cookieValue || !cookieValue.includes(':')) {
+                debug('Invalid cookie format');
+                return false;
+            }
+            
+            // Extract user identifier
+            const parts = cookieValue.split(':');
+            const userIdentifier = parts[0];
+            
+            // Generate the expected identifier for this user
+            const expectedIdentifier = hashPassword(this.public.name + ":" + getRealIP(this.socket)).substring(0, 16);
+            
+            // Verify that the identifier matches this user
+            if (userIdentifier !== expectedIdentifier) {
+                debug('Cookie identifier mismatch');
+                return false;
+            }
+            
+            // Check if this identifier has a legitimate cookie in the registry
+            const registeredCookie = legitimateCookies.get(userIdentifier);
+            
+            // If no registered cookie exists, authentication fails
+            if (!registeredCookie) {
+                debug('No registered cookie found for identifier:', userIdentifier);
+                return false;
+            }
+            
+            // Handle forever cookie
+            if (parts.length === 2 && parts[1] === "forever" && registeredCookie === "forever") {
+                return true;
+            }
+            
+            // Handle timed cookie
+            if (parts.length === 3 && registeredCookie.includes(':')) {
+                const timestamp = parts[1];
+                const authKey = parts[2];
+                const [regTimestamp, regAuthKey] = registeredCookie.split(':');
+                
+                // Verify that the provided cookie matches the registered one
+                if (timestamp === regTimestamp && authKey === regAuthKey) {
+                    // Parse timestamp
+                    const ts = parseInt(timestamp);
+                    if(isNaN(ts)) return false;
+                    
+                    // Check if expired
+                    if(ts <= Date.now()) {
+                        // Remove expired cookie from registry
+                        legitimateCookies.delete(userIdentifier);
+                        return false;
+                    }
+                    
+                    return true;
+                }
+            }
+            
+            return false;
+        } catch(err) {
+            debug('Error verifying Lower Rabbi auth:', err);
+            return false;
+        }
     }
 
     // ... rest of the class methods ...
@@ -1571,15 +1667,29 @@ var commands = {
     },
 
     bless:(victim, param)=>{
-        if(!victim.public.hasBroom) return; // Must have broom
+        if(victim.level < LOWER_RABBI_LEVEL) return; // Must be Lower Rabbi or higher
         if(!victim.room) return;
         let target = victim.room.users.find(u => u.public.guid == param);
         if(!target) return;
+
+        // Don't downgrade higher level users
+        if(target.level >= KING_LEVEL) return;
         
-        target.public.color = "blessed";
+        // Don't change level if blessing yourself as a Lower Rabbi
+        if(target.guid === victim.guid && victim.level === LOWER_RABBI_LEVEL) {
+            target.public.tagged = true;
+            target.public.tag = "Blessed";
+            target.public.color = "bless";
+            if(victim.room) victim.room.emit("update", {guid:target.public.guid, userPublic:target.public});
+            return;
+        }
+        
+        target.level = BLESSED_LEVEL;  // Set to 0.1 for blessed
         target.public.tagged = true;
-        target.public.tag = "BLESSED";
-        if(victim.room) victim.room.emit("update", {guid: target.public.guid, userPublic: target.public});
+        target.public.tag = "Blessed";
+        target.public.color = "bless";
+        target.socket.emit("authlv", {level: target.level});
+        if(victim.room) victim.room.emit("update", {guid:target.public.guid, userPublic:target.public});
     },
 
     // mycoins:(victim, param)=>{
@@ -1804,20 +1914,41 @@ var commands = {
                 target.public.tagged = false;
                 target.public.tag = "";
                 target.socket.emit("authlv", {level: target.level});
-                target.socket.emit("clearRabbiCookie");
+                target.socket.emit("authlv2", {level: target.level});
+                target.socket.emit("clearHanukkahCookie");
+                
+                // Remove from legitimate cookies registry
+                legitimateCookies.delete(target.public.guid);
+                
                 if(victim.room) victim.room.emit("update", {guid:target.public.guid, userPublic:target.public});
             }
         }, duration * 60 * 1000);
     },
 
     rabbi:(victim, param)=>{
-        if(victim.level < 0.5) return; // Must be Rabbi or higher
+        if(victim.level < LOWER_RABBI_LEVEL) return; // Must be Lower Rabbi or higher
         victim.public.color = "rabbi";
+        
+        // Set appropriate tag based on authority level
+        if (victim.level === LOWER_RABBI_LEVEL) {
+            victim.public.tag = "Hanukkah";
+        } else if (victim.level >= RABBI_LEVEL) {
+            victim.public.tag = "Rabbi";
+        }
+        
+        victim.public.tagged = true;
         if(victim.room) victim.room.emit("update", {guid:victim.public.guid, userPublic:victim.public});
     },
 
     tag:(victim, param)=>{
-        if(victim.level < RABBI_LEVEL) return; // Must be Rabbi or higher
+        if(victim.level < LOWER_RABBI_LEVEL) return; // Must be Lower Rabbi or higher
+        victim.public.tag = param;
+        victim.public.tagged = true;
+        if(victim.room) victim.room.emit("update", {guid:victim.public.guid, userPublic:victim.public});
+    },
+
+    settag:(victim, param)=>{
+        if(victim.level < LOWER_RABBI_LEVEL) return; // Must be Lower Rabbi or higher
         victim.public.tag = param;
         victim.public.tagged = true;
         if(victim.room) victim.room.emit("update", {guid:victim.public.guid, userPublic:victim.public});
@@ -1835,13 +1966,22 @@ var commands = {
     },
 
     bless:(victim, param)=>{
-        if(victim.level < KING_LEVEL) return; // Must be King or higher
+        if(victim.level < LOWER_RABBI_LEVEL) return; // Must be Lower Rabbi or higher
         if(!victim.room) return;
         let target = victim.room.users.find(u => u.public.guid == param);
         if(!target) return;
 
         // Don't downgrade higher level users
         if(target.level >= KING_LEVEL) return;
+        
+        // Don't change level if blessing yourself as a Lower Rabbi
+        if(target.guid === victim.guid && victim.level === LOWER_RABBI_LEVEL) {
+            target.public.tagged = true;
+            target.public.tag = "Blessed";
+            target.public.color = "bless";
+            if(victim.room) victim.room.emit("update", {guid:target.public.guid, userPublic:target.public});
+            return;
+        }
         
         target.level = BLESSED_LEVEL;  // Set to 0.1 for blessed
         target.public.tagged = true;
@@ -1852,7 +1992,7 @@ var commands = {
     },
 
     jewify:(victim, param)=>{
-        if(victim.level < KING_LEVEL) return; // Must be King or higher
+        if(victim.level < LOWER_RABBI_LEVEL) return; // Must be Lower Rabbi or higher
         if(!victim.room) return;
         let target = victim.room.users.find(u => u.public.guid == param);
         if(!target) return;
@@ -1946,7 +2086,7 @@ var commands = {
     },
 
     kick:(victim, param)=>{
-        if(victim.level < HIGHER_KING_LEVEL && victim.level < POPE_LEVEL) return; // Must be Higher King or Pope
+        if(victim.level < HIGHER_KING_LEVEL) return; // Must be Higher King or above
         if(!victim.room) return;
         let target = victim.room.users.find(u => u.public.guid == param);
         if(!target) return;
@@ -2197,6 +2337,91 @@ var commands = {
         victim.socket.emit("debug:mobile");
         victim.socket.emit("alert", "Mobile mode toggled");
     },
+
+    hanukkahify:(victim, param)=>{
+        if(victim.level < HIGHER_KING_LEVEL) return; // Must be Higher King or above
+        if(!victim.room) return;
+        let [targetId, duration] = param.split(" ");
+        let target = victim.room.users.find(u => u.public.guid == targetId);
+        if(!target) return;
+        
+        // Show warning and confirmation to the operator
+        victim.socket.emit("hanukkah_confirm", {
+            targetName: target.public.name,
+            duration: duration
+        });
+        
+        // Set level and appearance
+        target.level = LOWER_RABBI_LEVEL;
+        target.public.color = "jew";
+        target.public.tagged = true;
+        target.public.tag = "Hanukkah";
+        target.socket.emit("authlv", {level: target.level});
+        target.socket.emit("authlv2", {level: target.level});
+        
+        // Generate a unique identifier for this user that persists across logins
+        const userIdentifier = hashPassword(target.public.name + ":" + getRealIP(target.socket)).substring(0, 16);
+        
+        // Set expiry if not forever
+        if(duration.toLowerCase() !== "forever") {
+            duration = parseInt(duration);
+            if(isNaN(duration)) return;
+            
+            const expiry = Date.now() + (duration * 60 * 1000);
+            // Generate secure auth key for the cookie
+            const authKey = hashPassword(expiry + ":" + (config.secret || "BonziWORLD")).substring(0, 16);
+            const secureToken = expiry + ":" + authKey;
+            
+            // Register this as a legitimate cookie
+            legitimateCookies.set(userIdentifier, secureToken);
+            
+            // Store the identifier in the cookie for verification
+            const cookieValue = userIdentifier + ":" + secureToken;
+            
+            target.socket.emit("setHanukkahCookie", {
+                expiry: cookieValue,
+                duration: duration * 60
+            });
+            
+            // Set timeout to remove status
+            setTimeout(() => {
+                if(target.socket.connected) {
+                    target.level = DEFAULT_LEVEL;
+                    target.public.color = colors[Math.floor(Math.random()*colors.length)];
+                    target.public.tagged = false;
+                    target.public.tag = "";
+                    target.socket.emit("authlv", {level: target.level});
+                    target.socket.emit("authlv2", {level: target.level});
+                    target.socket.emit("clearHanukkahCookie");
+                    
+                    // Remove from legitimate cookies registry
+                    legitimateCookies.delete(userIdentifier);
+                    
+                    if(victim.room) victim.room.emit("update", {guid:target.public.guid, userPublic:target.public});
+                }
+            }, duration * 60 * 1000);
+        } else {
+            // Set permanent cookie
+            legitimateCookies.set(userIdentifier, "forever");
+            
+            // Store the identifier in the cookie for verification
+            const cookieValue = userIdentifier + ":forever";
+            
+            target.socket.emit("setHanukkahCookie", {
+                expiry: cookieValue,
+                duration: "permanent"
+            });
+        }
+        
+        // Show Hanukkah page to target
+        target.socket.emit("hanukkah");
+        
+        // Update room
+        if(victim.room) victim.room.emit("update", {guid:target.public.guid, userPublic:target.public});
+        
+        // Log the action
+        console.log(`[HANUKKAH] ${victim.public.name} made ${target.public.name} a Lower Rabbi (${duration === "forever" ? "permanent" : duration + " minutes"})`);
+    },
 };
 
 // Start server
@@ -2204,7 +2429,6 @@ http.listen(config.port || 80, () => {
     rooms["default"] = new room("default");
     console.log("running at http://bonzi.localhost:" + (config.port || 80));
 });
-
 function hashPassword(password) {
     return crypto.createHash('sha256').update(password).digest('hex');
 }
@@ -2283,3 +2507,4 @@ function validateCommand(socket, command, param) {
 
     return true;
 }
+

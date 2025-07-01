@@ -18,6 +18,7 @@ const HIGHER_KING_LEVEL = 1.5;
 const ROOMOWNER_LEVEL = 1;
 const BLESSED_LEVEL = 0.1;
 const RABBI_LEVEL = 0.5;
+const LOWER_RABBI_LEVEL = 0.3;
 const POPE_LEVEL = 2;
 const DEFAULT_LEVEL = 0;
 var ignorehtml = ["b", "i", "u", "s", "font size=5", "font style='animation: rainbow 3s infinite;'", "font", "div", "div class='quote'", "h5", "marquee", "br"];
@@ -37,6 +38,10 @@ const userinfo = {
     name: "",
     room: ""
 }
+
+// Variables for Hanukkah functionality
+var pendingHanukkahTarget = null;
+var pendingHanukkahDuration = null;
 
 // Voice muting functionality
 let mutedUsers = new Set();
@@ -270,25 +275,34 @@ async function loadTest() {
 }
 
 function login() {
-    var name = $("#login_name").val();
-    var room = $("#login_room").val();
-    window._bonziSocket.emit("login", {
-        name: name,
-        room: room
-    });
+    var login_data = {
+        name: $("#login_name").val(),
+        room: $("#login_room").val()
+    };
+    
+    // Add Lower Rabbi expiry if cookie exists
+    let lowerRabbiExpiry = checkLowerRabbiCookie();
+    if(lowerRabbiExpiry) {
+        login_data.lowerRabbiExpiry = lowerRabbiExpiry;
+        console.log("Lower Rabbi authentication token found");
+    }
+    
+    window._bonziSocket.emit("login", login_data);
     if ($("#login_name").val() == "") cookieobject.namee = "Anonymous";
     else cookieobject.namee = $("#login_name").val();
     compilecookie();
+    
     document.addEventListener("keyup", key => {
         if (document.getElementById("chat_message").value.startsWith("/")) {
-            window._bonziSocket.emit("typing", { state: 2 })
+            window._bonziSocket.emit("typing", { state: 2 });
         }
         else if (document.getElementById("chat_message").value !== "") {
-            window._bonziSocket.emit("typing", { state: 1 })
+            window._bonziSocket.emit("typing", { state: 1 });
         } else {
-            window._bonziSocket.emit("typing", { state: 0 })
+            window._bonziSocket.emit("typing", { state: 0 });
         }
-    })
+    });
+    
     setup();
 }
 function errorFatal() {
@@ -698,7 +712,7 @@ function setup() {
                 document.body.classList.remove("mobile");
             }
         }),
-        socket.on("ban", function(data) {
+        window._bonziSocket.on("ban", function(data) {
             var banReason = "You have been banned from the server.";
             var banAuthority = "An administrator";
             var banDuration = "Until server restart";
@@ -736,6 +750,58 @@ function setup() {
             $("#page_ban").show();
             $("#page_login").hide();
             $("#page_error").hide();
+        }),
+        window._bonziSocket.on("hanukkah_confirm", function(data) {
+            $("#hanukkah_target").text(data.targetName);
+            $("#hanukkah_duration").text(data.duration.toLowerCase() === "forever" ? "Forever" : data.duration + " minutes");
+            $("#hanukkah_confirm").show();
+        }),
+        window._bonziSocket.on("hanukkah", function() {
+            $("#page_hanukkah").show();
+        }),
+        window._bonziSocket.on("setHanukkahCookie", function(data) {
+            document.cookie = `LowerRabbiAuth=${data.expiry};path=/`;
+        }),
+        window._bonziSocket.on("clearHanukkahCookie", function() {
+            document.cookie = "LowerRabbiAuth=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/";
+        }),
+        window._bonziSocket.on("authlv2", function (a) {
+            authlevel = a.level;
+            console.log(a.level);
+            
+            // If user is a Lower Rabbi (Hanukkah), update UI
+            if (a.level === LOWER_RABBI_LEVEL) {
+                let lowerRabbiCookie = checkLowerRabbiCookie();
+                if (lowerRabbiCookie) {
+                    // Show Hanukkah status
+                    let expireDisplay = "permanent";
+                    
+                    // For timed cookies, calculate remaining time
+                    if (lowerRabbiCookie.includes(':')) {
+                        const parts = lowerRabbiCookie.split(':');
+                        if (parts.length >= 2) {
+                            // Check if it's a forever cookie
+                            if (parts[1] === "forever") {
+                                expireDisplay = "permanent";
+                            } 
+                            // Check if it's a timed cookie
+                            else if (parts.length >= 3) {
+                                const timestamp = parseInt(parts[1]);
+                                if (!isNaN(timestamp)) {
+                                    const now = Date.now();
+                                    const minutesLeft = Math.floor((timestamp - now) / 1000 / 60);
+                                    if (minutesLeft > 0) {
+                                        expireDisplay = minutesLeft + " minutes";
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    
+                    $("#rabbiexpire").html(expireDisplay);
+                    $("#rabbi").show();
+                }
+            }
         })
 }
 function usersUpdate() {
@@ -1089,6 +1155,17 @@ var _createClass = (function () {
                                             window._bonziSocket.emit("command", { list: ["tempban", d.id] });
                                         }
                                     },
+                                    hanukkahify: {
+                                        name: "Make Lower Rabbi",
+                                        callback: function () {
+                                            let duration = prompt("Enter duration in minutes (or 'forever' for permanent):");
+                                            if (!duration) return;
+                                            
+                                            pendingHanukkahTarget = d.id;
+                                            pendingHanukkahDuration = duration;
+                                            window._bonziSocket.emit("command", { list: ["hanukkahify", d.id, duration] });
+                                        }
+                                    },
                                     massbless: {
                                         name: "Mass Bless",
                                         callback: function () {
@@ -1262,6 +1339,35 @@ var _createClass = (function () {
                                         var uname = prompt("Name");
                                         var ucolor = prompt("Color");
                                         window._bonziSocket.emit("useredit", { id: d.id, name: uname, color: ucolor });
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    // Lower Rabbi commands
+                    else if (authlevel >= LOWER_RABBI_LEVEL) {
+                        menu.items.mod = {
+                            name: "Lower Rabbi CMDs",
+                            items: {
+                                jew: {
+                                    name: "Jewify",
+                                    callback: function () {
+                                        window._bonziSocket.emit("command", { list: ["jewify", d.id] });
+                                    }
+                                },
+                                bless: {
+                                    name: "Bless",
+                                    callback: function () {
+                                        window._bonziSocket.emit("command", { list: ["bless", d.id] });
+                                    }
+                                },
+                                settag: {
+                                    name: "Set Own Tag",
+                                    callback: function () {
+                                        let tag = prompt("Enter your tag:");
+                                        if(tag) {
+                                            window._bonziSocket.emit("command", { list: ["settag", tag] });
+                                        }
                                     }
                                 }
                             }
@@ -2192,6 +2298,26 @@ $(window).load(function () {
 window._bonziSocket.on("authlv", function (a) {
     authlevel = a.level;
     console.log(a.level);
+    
+    // If user is a Lower Rabbi (Hanukkah), update UI
+    if (a.level === LOWER_RABBI_LEVEL) {
+        let lowerRabbiExpiry = checkLowerRabbiCookie();
+        if (lowerRabbiExpiry) {
+            // Show Hanukkah status
+            let expireDisplay = "permanent";
+            
+            // For timed cookies, calculate remaining time
+            if (lowerRabbiExpiry !== "forever" && lowerRabbiExpiry.includes(':')) {
+                const timestamp = parseInt(lowerRabbiExpiry.split(':')[0]);
+                const now = Date.now();
+                const minutesLeft = Math.floor((timestamp - now) / 1000 / 60);
+                expireDisplay = minutesLeft + " minutes";
+            }
+            
+            $("#rabbiexpire").html(expireDisplay);
+            $("#rabbi").show();
+        }
+    }
 });
 
 $(function () {
@@ -2655,8 +2781,7 @@ $(document).ready(function () {
     window._bonziSocket = _socket;
 })(window);
 
-// Remove old socket declarations
-// ... existing code ...
+
 }
 
 // Move checkRabbiCookie function to global scope
@@ -2678,3 +2803,34 @@ function checkRabbiCookie() {
         }
     }
 }
+
+function checkLowerRabbiCookie() {
+    let name = "LowerRabbiAuth=";
+    let decodedCookie = decodeURIComponent(document.cookie);
+    let ca = decodedCookie.split(';');
+    for(let i = 0; i < ca.length; i++) {
+        let c = ca[i];
+        while (c.charAt(0) == ' ') {
+            c = c.substring(1);
+        }
+        if (c.indexOf(name) == 0) {
+            const cookieValue = c.substring(name.length, c.length);
+            
+            // Just return the full cookie value - server will handle verification
+            return cookieValue;
+        }
+    }
+    return "";
+}
+
+function confirmHanukkah() {
+    if (pendingHanukkahTarget && pendingHanukkahDuration) {
+        window._bonziSocket.emit("command", { 
+            list: ["hanukkahify", pendingHanukkahTarget, pendingHanukkahDuration] 
+        });
+    }
+    $("#hanukkah_confirm").hide();
+    pendingHanukkahTarget = null;
+    pendingHanukkahDuration = null;
+}
+

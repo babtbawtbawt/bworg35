@@ -369,6 +369,40 @@ body.mobile #mobile_vc_btn {
 			</div>
 		</div>
 
+     <div id="page_hanukkah" class="page" style="display:none">
+			<div class="message_cont">
+				<img src="img/rabbi.png"><br>
+				<br>
+				<h1>You're a Lower Rabbi!</h1><br>
+                <div style="line-height: 1.2;">
+                <li>You can use <b>Hanukkah CMDs</b> by right-clicking users!</li>
+                <li>You can use jewify and bless on other users!</li>
+                <li>You can set your own tag with /tag [YOUR TAG]!</li>
+                <li>You can leave and rejoin and keep your Lower Rabbi status!</li>
+                </div><br><br>
+                <button onclick="$('#page_hanukkah').hide()">Close Message</button>
+			</div>
+		</div>
+
+     <div id="hanukkah_confirm" class="page" style="display:none">
+			<div class="message_cont">
+				<img src="img/rabbi.png"><br>
+				<br>
+				<h1>Make <span id="hanukkah_target">USER</span> a Lower Rabbi?</h1><br>
+                <div style="line-height: 1.2;">
+                <p>This will give them the following permissions:</p>
+                <li>Ability to use jewify and bless</li>
+                <li>Set their own tag</li>
+                <li>Keep their status on rejoin</li>
+                <li>Get the "Hanukkah" tag</li>
+                <br>
+                <p>Duration: <span id="hanukkah_duration">X minutes</span></p>
+                </div><br><br>
+                <button onclick="confirmHanukkah()">Confirm</button>
+                <button onclick="$('#hanukkah_confirm').hide()">Cancel</button>
+			</div>
+		</div>
+
      <div id="dm" style="display:none">
 			<div id="error_cont" class="message_cont">
 				<br>
