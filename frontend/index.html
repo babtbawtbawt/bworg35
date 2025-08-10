@@ -1,288 +1,117 @@
 <!DOCTYPE html>
 <html>
 <head>
-	<title>BonziWORLD Official</title>
-	<meta charset="utf-8"/>
-	<meta name="description" content="Welcome to Official BonziWORLD! Join a fun community based around BonziBUDDY without any rules! Chat, joke, share media and more!"/>
+	<title>BonziWORLD</title>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+	<meta name="mobile-web-app-capable" content="yes" />
 
-	<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"/>
-	<meta name="mobile-web-app-capable" content="yes"/>
-	<meta name="thumbnail" content="./download.jpg"/>
+	<link rel="stylesheet" type="text/css" href="./style.css">
 
-	<link rel="stylesheet" id="stylesheet" type="text/css" href="style.css">
-	<link rel="icon" type="image/png" href="img/favicon.png" sizes="32x32">
-	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
-	<script src="lib/easeljs.min.js"></script>
-	<script src="lib/preloadjs-0.6.2.min.js"></script>
-	<script src="lib/jquery.min.js"></script>
-	<script src="lib/seedrandom.min.js"></script>
-	<script src="lib/socket.io-1.4.5.js"></script>
-	<script src="lib/speakjs/speakClient.js"></script>
-	<script src="lib/jquery.contextMenu.min.js"></script>
-	<script src="https://kit.fontawesome.com/7eb4dccc86.js" crossorigin="anonymous"></script>
-	<script src="script.js"></script>
+	<link rel="icon" type="image/png" href="./img/favicon.png" sizes="32x32">
+	<meta name="theme-color" content="#ffffff">
 
-  <script>
-        var show = false;
-        function showtoggle() {
-            // Show log and hide the button
-            $('#log').show();
-            $('#mainlog').show();
-            $('#logshow').hide();
-            // Scroll to bottom
-            document.getElementById("logcontent").scrollTop = document.getElementById("logcontent").scrollHeight;
-        }
-        </script>
+	<script src="./lib/easeljs.min.js"></script>
+	<script src="./lib/preloadjs-0.6.2.min.js"></script>
+	<script src="./lib/jquery.min.js"></script>
+	<script src="./lib/seedrandom.min.js"></script>
+	<script src="./lib/socket.io-1.4.5.js"></script>
+	<script src="./lib/speakjs/speakClient.js"></script>
+	<script src="./lib/jquery.contextMenu.min.js"></script>
 
 <style>
+.jim-popup {
+		position: absolute;
+		z-index: 9999;
+		cursor: move;
+		display: none;
+}
+.jim-popup img {
+		max-width: 800px;
+		height: auto;
+}
+</style>
+
+<style>
+.blue-popup {
+		position: absolute;
+		z-index: 9999;
+		cursor: move;
+		display: none;
+}
+.blue-popup img {
+		max-width: 800px;
+		height: auto;
+}
+</style>
+
+	<script src="./script.js"></script>
+<style>
+
 span{
 font-size:12px;
-}
-  .quote{
-  border-left: 3px solid rgba(0,0,0,0.3);
-  padding: 2px 3px;
-}
-#log{
-position:fixed;
-top:0;
-left:0;
-max-width:300px;
-color:white;
-z-index:1000;
-height:calc(100% - 30px);
-}
-#log button{
-font-size:20px;
-position:fixed;
-padding:5px 9px;
-top:3px;
-left:3px;
-font-family:arial;
-background-color: #502570;
-border-radius: 4px;
-box-shadow: inset 0px 0px 1px 2px rgba(0,0,0,0.3);
-background-image: radial-gradient(circle at top left, rgba(255, 255, 255, 0.6), rgba(0,0,0,0) 50%);
-border: 1px solid white;
-color:white;
-z-index:1001;
-cursor: pointer;
-}
-#log button:hover{
-background-color: #703970;
-}
-#log button:active{
-background-color: #403060;
-}
-#mainlog{
-    position:fixed;
-    height:calc(100% - 30px);
-    width:320px;
-    top:0;
-    left:0;
-}
-#title{
-    padding: 6px 8px;
-    width:100%;
-    box-sizing: border-box;
-    font-size:20px;
-    border-radius:0px 5px 0px 0px;
-    background-color: #6d3399;  
-    box-shadow: inset -3px 3px 3px 2px rgba(255,255,255,0.2);     
-}
-#title i{
-    float:right;
-    cursor: pointer;
-    padding: 4px 8px;
-    margin: -4px;
-    border-radius: 4px;
-}
-#title i:hover {
-    background-color: rgba(255,255,255,0.1);
-}
-#title i:active {
-    background-color: rgba(0,0,0,0.1);
-}
-#logcontent{
-    width:100%;
-    line-height:1.5;
-    padding:0px 5px;
-    left:0px;
-    box-sizing: border-box;
-    height:calc(100% - 31px);
-    background-color:rgba(0,0,0,0.8);
-    box-shadow: inset -3px 0px 3px 2px rgba(255,255,255,0.4);    
-    overflow-y:scroll;
-    border-radius:0px 0px 5px 0px;
-    overflow-x:break;
-    word-break:break-word;
-}
-#logcontent::-webkit-scrollbar{
-    display:none;
-}
-  .userimage, .uservideo{
-    width: 172px;
-    max-height: 172px;
-  }
-  #pollyes, #pollno{
-      width:100%;
-      font-size:19px;
-      box-sizing: border-box;
-      padding: 5px 4px;
-      color:black;
-      overflow:visible;
-  }
-  #pollyes{
-      width:1%;
-      background-color:rgba(0,255,0,0.3);
-  }
-  #pollno{
-      background-color:rgba(255,0,0,0.3);
-      width:1%;
-  }
-  .official_tag{ 
-  border-style: solid;
-  border-width: 4px 12px 4px 0;
-  border-radius: 9px;
-  border: #000000 solid 1px;
-  padding: 5px 6px;
-  position: absolute;
-  background: #ffffe1;
-  transform:translateY(-100%);
-  font-size: 11px;
-	color: #000;
-}
-        
-.bonzi_name {
-    z-index:0;
-}
-.bonzi_placeholder{
-    z-index: -1;
-}
-.bubble{
-    z-index:1;
-}
-    @keyframes rainbow{
-        0%{color: red;}
-        16%{color: orange;}
-        32%{color: yellow;}
-        48%{color: lime;}
-        64%{color: cyan;}
-        80%{color: blue;}
-        90%{color: #FF00FF;}
-        100%{color: red;}
-    }
-    .shop_item {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding: 10px;
-        margin: 5px 0;
-        background: rgba(255,255,255,0.1);
-        border-radius: 5px;
-    }
-    .shop_item button {
-        padding: 5px 10px;
-        background: #6d3399;
-        color: white;
-        border: none;
-        border-radius: 3px;
-        cursor: pointer;
-    }
-    .shop_item button:hover {
-        background: #8d4db9;
-    }
-    .shop_item button:disabled {
-        background: #666;
-        cursor: not-allowed;
-        opacity: 0.5;
-    }
-    #shop_balance {
-        font-size: 18px;
-        margin: 10px 0;
-        font-weight: bold;
-    }
-
-/* Mobile VC button styles */
-#mobile_vc_btn {
-    display: none;
-    position: fixed;
-    top: 80px;
-    right: 20px;
-    padding: 12px 20px;
-    background-color: #502570;
-    color: white;
-    border: 1px solid white;
-    border-radius: 4px;
-    font-size: 18px;
-    z-index: 9999;
-    box-shadow: inset 0px 0px 1px 2px rgba(0,0,0,0.3);
-    background-image: radial-gradient(circle at top left, rgba(255, 255, 255, 0.6), rgba(0,0,0,0) 50%);
-    cursor: pointer;
-}
-
-#mobile_vc_btn:hover {
-    background-color: #703970;
-}
-
-#mobile_vc_btn:active {
-    background-color: #403060;
-}
-
-@media screen and (max-width: 768px) {
-    #mobile_vc_btn.mobile {
-        display: block;
-    }
-}
-
-/* Add mobile-specific styles */
-body.mobile #mobile_vc_btn {
-    display: block;
 }
 </style>
 </head>
 <body>
 	<div id="content">
-        <div id="bghold"></div>
-<button id="logshow" style="position:fixed;padding:5px 9px;top:3px;left:3px;font-family:arial;background-color:#502570;border-radius:4px;box-shadow:inset 0px 0px 1px 2px rgba(0,0,0,0.3);background-image:radial-gradient(circle at top left,rgba(255,255,255,0.6),rgba(0,0,0,0) 50%);border:1px solid white;color:white;z-index:1001;cursor:pointer;display:none;" onclick="showtoggle()"><i class="fa fa-navicon" aria-hidden="true"></i></button>
-<div id="log" style="display:none;">
-<div id="mainlog" style="display:none;">
-<div id="title">Bonzi LOG™ <i onclick="$('#mainlog').hide();$('#log').hide();$('#logshow').show()" class="fa fa-close" aria-hidden="true"></i></div>
-<div id="logcontent">
-    <p>Welcome to BonziWORLD</p>
-</div>
-</div>
-</div>
-    
+
 		<div id="room_info">
 			<span>Room ID - <span class="room_id">???</span></span><br>
 			<span id="room_public">This room is public.</span>
-			<span id="room_private">This room is private.</span><br>
-			<span id="climit" style="display: none;">Alt Limit: ???</span>
-			<span id="memcount">Member Count: ???</span>
+			<span id="room_private">This room is private.</span>
 			<span id="room_owner"><br>You are the owner of this room.</span><br>
-			<span id="desanitize" style="display: none;">HTML is allowed in this room. Join at your own risk.</span>
 		</div>
 
-		<canvas id="bonzi_canvas" width="100" height="100"></canvas>
-		
+		<canvas id="bonzi_canvas" width="100" height="100" style="filter: drop-shadow(3px 5px 2px rgb(0 0 0 / 0.4));"></canvas>
+
+		<div class="ng-scope chat-log minimized glued status-idle status-unmuted status-sapi-enabled" id="chat_log">
+			<div id="chat_log_header" class="no_selection">
+				<div class="clh-col" id="chat_log_title" style="padding-top:3.1px;padding-left:7px;">
+					<span id="branding_log">BonziWORLD</span>
+					| <span id="ver_log"></span>
+				</div>
+				<div class="clh-col" id="chat_log_status"></div>
+				<div class="clh-col" id="chat_log_controls">
+					<ul>
+						<li class="clh-clc-item">
+							<span class="clc-minmax clc-minimize" alt="Minimize Log" title="Minimize Log">▼</span>
+							<span class="clc-minmax clc-maximize" alt="Maximize Log" title="Maximize Log">▲</span>
+						</li>
+					</ul>
+				</div>
+			</div>
+			<div id="chat_log_list" class="hidden">
+				<ul>
+					<li class="bonzi-message cl-msg ng-scope bonzi-event no_selection" id="cl-msg-hzj2eadymcqy4t2ksq6w54mf">
+						<span class="timestamp ng-binding" id="welcome-timestamp"></span>
+						<span class="sep tn-sep"></span>
+						<span class="bonzi-name ng-isolate-scope" data-ng-style="message.style" bonzi-text-name="message">
+							<span class="event-source ng-binding ng-scope" style="font-size:14px;">
+								Welcome to BonziWORLD!<br>
+							</span>
+						</span>
+					</li>
+				</ul>
+				<div id="cll-glue-toggle" alt="Scroll down" title="Scroll down">
+					<i class="fas fa-angle-double-down" aria-hidden="true"></i>
+				</div>
+			</div>
+		</div>
+
 		<table id="chat_bar"><tr>
 			<td id="chat_send">send</td>
-			<td id="chat_message_cont" style="padding:1px;"><input id="chat_message" type="text" placeholder="Enter a message" style="left:-5px;height:66%;position:relative;font-size:17px;top:0px;padding:3px;border-radius:5px;"></td>
+			<td id="chat_message_cont"><input id="chat_message" type="text" placeholder="Enter a message" style="left:-5px;height:20px;position:relative;font-size:15px;top:-1px"></td>
 			<td id="chat_tray">
 				<div id="btn_tile" class="tray_btn"></div>
 			</td>
 		</tr></table>
 
+
 		<div id="page_login" class="page">
-			<div id="login_readme" class="card_list">
-				BonziCOINS event is over. Thanks to all who participated.
-				<div class="card">
-					Welcome to BonziWORLD!
-					<p>This is a reconstruction of early BW.org 6.9.16 LEAKED BETA (feb 11 2024)</p>
-                                        <br>
-					<a href="https://discord.gg/ddgyzDnN">We have a discord server too.</a>
-				</div>
+			<div id="login_apps" class="app_showcase">
 			</div>
+			<div id="login_readme">Make sure to check out the <a id="readme" href="readme.html" target="_blank">README</a> and the <a id="readme" href="rules.html" target="_blank">RULES</a> | <a href="vc/" target="_blank">Voice Chat</a> before use.</div>
 			<div id="login_card" style="display:none">
 				<input id="login_name" type="text" placeholder="Nickname">
 				<input id="login_room" type="text" placeholder="Room ID (Optional)">
@@ -290,230 +119,67 @@ body.mobile #mobile_vc_btn {
 				<div id="login_error" style="display:none"></div>
 			</div>
 			<div id="login_load">loading</div>
-			<div id="login_version">Version 6.9.16 LEAKED BETA</div>
+			<div id="login_version">Version 1.0.0</div>
 		</div>
 
 		<div id="page_error" class="page" style="display:none">
 			<div id="error_cont" class="message_cont">
-				<img src="img/error/logo.png"><br>
+				<img src="./img/error/logo.png"><br>
 				<br>
 				<h1>BonziWORLD.exe has encountered an error and needs to close.</h1><br>
 				Nah, but seriously there was an error and you got disconnected from the server. Chances are, your internet just died out for a brief moment or your device went to sleep. Otherwise the server just screwed up.<br>
 				<br>
-				<h3>Please wait 5-10 seconds, once the server is back up you'll automatically rejoin.<br>
+				Try and reload the page. If that doesn't work and your internet is okay, then panic. We'll probably be back up Soon&trade; though.<br>
 				<br>
-				<a href="#" onclick="window.location.reload()">Reload? (click if you didnt autorejoin after 5-10 seconds)</a><br>
+				<a href="#" onClick="window.location.reload()">Reload?</a><br>
 				<br>
 				Room ID - <span class="room_id">???</span><br>
 			</div>
 		</div>
 
-                <div id="page_error105" class="page" style="display:none">
+
+								<div id="page_error105" class="page" style="display:none">
 			<div id="error_cont" class="message_cont">
-				<img src="img/error/logo.png"><br>
+				<img src="./img/error/logo.png"><br>
 				<br>
-				<h1>Client limit violation</h1><br>
-			        You exceeded the maximum amount of clients allowed, this is to stop the server from being flooded.<br>
+				<h1>BonziWORLD.exe doesnt want to accept your connection.(105)</h1><br>
+							there are too many clients on your ip, the max limit is <b id=limitip>unknown</b><br>
 				<br>
-			</div>
-		</div>
-
-                <div id="page_error106" class="page" style="display:none">
-			<div id="error_cont" class="message_cont">
-				<img src="img/error/logo.png"><br>
+				sorry but you exceeded the alt limit for this IP, this is to stop the server from being flooded.<br>
 				<br>
-				<h1>Client Slowmode Violation</h1><br>
-			        You have logged in too many times too fast. Please wait for over 10 seconds before trying again.<br><br>
-                    Done waiting? <a href="#" onclick="window.location.reload()">Reload</a>
-				<br>
-			</div>
-		</div>
-
-    <div id="page_error104" class="page" style="display:none">
-			<div id="error_cont" class="message_cont">
-				<img src="img/error/logo.png"><br>
-				<br>
-				<h1>BonziWORLD.exe is getting an update</h1><br>
-			        The server is being updated. This may be a bug fix or a new feature or something else. Don't bother me about it cause I'll tell you what it is if it's important.
-                    <br><br>You don't need to reload. Once the server is back up, you'll join automatically. Wait 5-10 seconds
-				<br><br>
-				<a href="#" onclick="window.location.reload()">Reload?</a>
-			</div>
-		</div>
-
-     <div id="quote" class="page" style="display:none">
-			<div class="message_cont">
-				<br>
-				<h1 id="replyto">Reply to ?</h1><br>
-			      <form action="javascript:quote()">
-              <input id="replyvalue" style="width:100%">
-              <input type="hidden" value="" id="guid"><br><br>
-              <input type="submit" value="Reply">
-            </form>
-			</div>
-		</div>
-
-     <div id="rabbi" class="page" style="display:none">
-			<div class="message_cont">
-				<img src="img/rabbi.png"><br>
-				<br>
-				<h1> You're a RABBI </h1><br>
-                <div style="line-height: 1.2;">
-                <li>You can use /announce and /poll like regular blessed users!</li>
-                <li>Right click a user to use <b>Special Rabbi Commands</b>!</li>
-                <li>You can leave and rejoin and still have Rabbi!</li>
-                <li>Do /tag [YOUR CUSTOM TAG] to set your own tag!</li>
-                <li>Do <b>/rabbi</b> to change to your <b>Rabbi color!</b> (with the tag too)</li>
-                </div><br><br>
-                <button onclick="$('#rabbi').hide()">Close Message</button>
-			</div>
-		</div>
-
-     <div id="page_hanukkah" class="page" style="display:none">
-			<div class="message_cont">
-				<img src="img/rabbi.png"><br>
-				<br>
-				<h1>You're a Lower Rabbi!</h1><br>
-                <div style="line-height: 1.2;">
-                <li>You can use <b>Hanukkah CMDs</b> by right-clicking users!</li>
-                <li>You can use jewify and bless on other users!</li>
-                <li>You can set your own tag with /tag [YOUR TAG]!</li>
-                <li>You can leave and rejoin and keep your Lower Rabbi status!</li>
-                </div><br><br>
-                <button onclick="$('#page_hanukkah').hide()">Close Message</button>
-			</div>
-		</div>
-
-     <div id="hanukkah_confirm" class="page" style="display:none">
-			<div class="message_cont">
-				<img src="img/rabbi.png"><br>
-				<br>
-				<h1>Make <span id="hanukkah_target">USER</span> a Lower Rabbi?</h1><br>
-                <div style="line-height: 1.2;">
-                <p>This will give them the following permissions:</p>
-                <li>Ability to use jewify and bless</li>
-                <li>Set their own tag</li>
-                <li>Keep their status on rejoin</li>
-                <li>Get the "Hanukkah" tag</li>
-                <br>
-                <p>Duration: <span id="hanukkah_duration">X minutes</span></p>
-                </div><br><br>
-                <button onclick="confirmHanukkah()">Confirm</button>
-                <button onclick="$('#hanukkah_confirm').hide()">Cancel</button>
-			</div>
-		</div>
-
-     <div id="dm" style="display:none">
-			<div id="error_cont" class="message_cont">
-				<br>
-				<h1 id="dmto">Message ?</h1><br>
-			      <form action="javascript:dm()">
-              <input id="dmvalue" style="width:100%">
-              <input type="hidden" value="" id="dmguid"><br><br>
-              <input type="submit" value="Reply">
-            </form>
-			</div>
-		</div>
-
-             <div id="announcement" class="page" style="display:none">
-			<div class="message_cont">
-				<h2 id="ancon">FROM?</h2><br>
-                <div id="ancontent"></div><br>
-                <button onclick="$('#announcement').hide()">Hide</button>
-			</div>
-		</div>
-
-             <div id="motd" class="page" style="display:none">
-			<div class="message_cont">
-                <div id="motdcontent"></div><br>
-                <h5>(You will only see this bubble again if there's a new different message)</h5>
-                <button onclick="$('#motd').hide()">Ok</button>
-			</div>
-		</div>
-
-		<div id="page_kick" class="page" style="display:none">
-			<div id="kick_cont" class="message_cont">
-				<img src="img/ban/logo.png"><br>
-				<br>
-				<h1>You got kicked!</h1><br>
-				<br>
-				<b>Why?</b> You probably pissed off the owner, but you can rejoin as there are no rules!</b><br>
-			</div>
-		</div>
-
-		<div id="pollcont" class="page" style="display:none">
-			<div id="error_cont" class="message_cont">
-				<img src="img/ban/logo.png"><br>
-				<br>
-				<h1 id="pollname"></h1><br>
-                <div id="pollyes" onclick="window._bonziSocket.emit('vote', true)">Yes</div><br>
-                <div id="pollno" onclick="window._bonziSocket.emit('vote', false)">No</div><br>
-                <h3 id="votecount">0 Votes</h3><br>
-                <button onclick="$('#pollcont').hide()">Hide Poll</button>
-			</div>
-		</div>
-
-		<div id="scarycont" class="page" style="display:none">
-			<div id="error_cont" class="message_cont">
-				<img src="img/ban/logo.png"><br>
-                <h1>We see you</h1>
-                We see you. Don't move until this message goes away.
-			</div>
-		</div>
-
-		<div id="shop" class="page" style="display:none">
-			<div class="message_cont">
-				<h1>BonziCoin Shop</h1>
-				<div id="shop_balance">Your Balance: <span id="balance_amount">0</span> coins</div>
-				<div id="shop_items"></div>
-				<button onclick="$('#shop').hide()">Close Shop</button>
 			</div>
 		</div>
 
 		<div id="page_ban" class="page" style="display:none">
 			<div id="ban_cont" class="message_cont">
-				<img src="img/ban/logo.png"><br>
+				<img src="./img/ban/logo.png"><br>
 				<br>
 				<h1>You got banned!</h1><br>
 				<br>
-				<b>Why?</b><br>
-				<span id="ban_reason">You have been banned from the server.</span><br>
+				<b>Why? </b><span id="ban_reason"></span><br>
+				<b>When is it over? </b><span id="ban_end"></span><br>
+			</div>
+		</div>
+
+		<div id="page_kick" class="page" style="display:none">
+			<div id="kick_cont" class="message_cont">
+				<img src="./img/ban/logo.png"><br>
 				<br>
-				<b>Who banned you?</b><br>
-				<span id="ban_authority">An administrator</span><br>
+				<h1>You got kicked!</h1><br>
 				<br>
-				<b>When is it over?</b><br>
-				<span id="ban_duration">Until server restart</span><br>
-				<br>
-				<div id="ban_appeal" style="display:none">
-					<b>Note:</b><br>
-					Temporary bans will automatically expire after the duration.<br>
-					The server may restart at any time which will clear all bans.<br>
-				</div>
+				<b>Why? </b><span id="ban_reason"></span><br>
 			</div>
 		</div>
 
 		<div id="page_unsupp" class="page" style="display:none">
 			<div id="unsupp_cont" class="message_cont">
-				<img src="img/error/logo.png"><br>
+				<img src="./img/error/logo.png"><br>
 				<br>
 				<h1>BonziWORLD cannot run on this platform.</h1><br>
 				Unfortunately, BonziWORLD cannot run in this browser for the following reasons:<br>
 				<ul id="unsupp_reasons"></ul>
 				You can try to download a BonziWORLD app that works on your device, or update your browser.
 				<div id="login_apps" class="app_showcase"></div>
-			</div>
-		</div>
-
-      <div id="page_error105" class="page" style="display:none">
-			<div id="error_cont" class="message_cont">
-				<img src="img/error/logo.png"><br>
-				<br>
-				<h1>BonziWORLD.exe doesnt want to accept your connection.(105)</h1><br>
-			        there are too many clients on your ip, the max limit is <b id="limitip">unknown</b><br>
-				<br>
-				sorry but you exceeded the alt limit for this IP, this is to stop the server from being flooded.<br>
-				<br>
 			</div>
 		</div>
 	</div>
@@ -526,6 +192,5 @@ body.mobile #mobile_vc_btn {
 
 	<ad></ad>
 
-    <button id="mobile_vc_btn" style="display: none;">Start VC</button>
 </body>
 </html>

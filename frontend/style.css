@@ -45,14 +45,12 @@ body, html {
   left: 50%; }
 
 body {
-  background-color: #2a133d; }
+  background-color: #421f60; }
 
 /* http://meyerweb.com/eric/tools/css/reset/ 
    v2.0 | 20110126
    License: none (public domain)
 */
-
-
 html, body, div, span, applet, object, iframe,
 h1, h2, h3, h4, h5, h6, p, blockquote, pre,
 a, abbr, acronym, address, big, cite, code,
@@ -113,10 +111,7 @@ input[type="text"] {
 
 @font-face {
   font-family: 'Tahoma';
-  src: url("font/Tahoma/Tahoma.eot#iefix") format("embedded-opentype"), 
-       url("font/Tahoma/Tahoma.woff") format("woff"), 
-       url("font/Tahoma/Tahoma.ttf") format("truetype"), 
-       url("font/Tahoma/Tahoma.svg#Tahoma") format("svg");
+  src: url("../font/Tahoma/Tahoma.eot?#iefix") format("embedded-opentype"), url("../font/Tahoma/Tahoma.woff") format("woff"), url("../font/Tahoma/Tahoma.ttf") format("truetype"), url("../font/Tahoma/Tahoma.svg#Tahoma") format("svg");
   font-weight: normal;
   font-style: normal; }
 #bonzi_canvas {
@@ -136,6 +131,22 @@ input[type="text"] {
   left: 0;
   -webkit-user-select: none;
   user-select: none; }
+
+
+.jim-profile {
+  position: absolute;
+  width: 400px;
+  height: 400px;
+  background-image: url('./img/banner/jim.megatron.png');
+  background-size: contain;
+  background-repeat: no-repeat;
+  cursor: move;
+  z-index: 1000;
+  display: none;
+  border: 3px solid #ff0000;
+}
+
+
 
 .bonzi > canvas, .bonzi_placeholder {
   position: absolute; }
@@ -172,7 +183,7 @@ input[type="text"] {
   right: -45px;
   top: 40px; }
   .bubble-left::after {
-    background-image: url("img/bonzi/bubble_tail_l.png");
+    background-image: url("../img/bonzi/bubble_tail_l.png");
     width: 22px;
     height: 14px;
     top: 12px;
@@ -182,7 +193,7 @@ input[type="text"] {
   top: 40px;
   left: 155px; }
   .bubble-right::after {
-    background-image: url("img/bonzi/bubble_tail_r.png");
+    background-image: url("../img/bonzi/bubble_tail_r.png");
     width: 22px;
     height: 14px;
     top: 12px;
@@ -191,7 +202,7 @@ input[type="text"] {
 .bubble-bottom {
   top: 156px; }
   .bubble-bottom::after {
-    background-image: url("img/bonzi/bubble_tail_b.png");
+    background-image: url("../img/bonzi/bubble_tail_b.png");
     width: 28px;
     height: 22px;
     top: -22px;
@@ -200,7 +211,7 @@ input[type="text"] {
 .bubble-top {
   bottom: 4px; }
   .bubble-top::after {
-    background-image: url("img/bonzi/bubble_tail_t.png");
+    background-image: url("../img/bonzi/bubble_tail_t.png");
     width: 28px;
     height: 22px;
     left: 110px; }
@@ -219,9 +230,16 @@ input[type="text"] {
 .bubble_greentext {
   color: #789922; }
 
+
+.bubble_nasrred {
+  font-family: 'Comic Sans MS', cursive;
+  color: #9e2929; 
+}
+
+
 body.vaporwave #content {
   background-color: #008080;
-  background-image: url("img/desktop.vaporwave/logo.png"), url("img/desktop.vaporwave/bg.png");
+  background-image: url("../img/desktop.vaporwave/logo.png"), url("../img/desktop.vaporwave/bg.png");
   background-position: top left, center;
   background-repeat: no-repeat; }
 body.vaporwave #chat_bar {
@@ -230,11 +248,11 @@ body.vaporwave #chat_bar {
   left: 0;
   width: 100%;
   height: 28px;
-  background-image: url("img/desktop.vaporwave/taskbar.png");
+  background-image: url("../img/desktop.vaporwave/taskbar.png");
   background-size: 100% 100%;
   z-index: 999; }
 body.vaporwave #chat_tray {
-  background-image: url("img/desktop.vaporwave/notif_left.png"), url("img/desktop.vaporwave/notif_right.png"), url("img/desktop.vaporwave/notif.png");
+  background-image: url("../img/desktop.vaporwave/notif_left.png"), url("../img/desktop.vaporwave/notif_right.png"), url("../img/desktop.vaporwave/notif.png");
   background-repeat: no-repeat;
   background-position: left, right, left;
   background-size: 5px 28px, 3px 28px, 100% 100%;
@@ -243,10 +261,10 @@ body.vaporwave #chat_tray {
   padding-top: 3px;
   width: 22px; }
 body.vaporwave #btn_tile {
-  background-image: url("img/desktop.vaporwave/tile.png"); }
+  background-image: url("../img/desktop.vaporwave/tile.png"); }
 body.vaporwave #chat_send {
   width: 58px;
-  background-image: url("img/desktop.vaporwave/start.png");
+  background-image: url("../img/desktop.vaporwave/start.png");
   background-size: 100%;
   background-repeat: no-repeat;
   box-sizing: border-box;
@@ -265,8 +283,8 @@ body.vaporwave #chat_send {
     background-position: 0 -56px; }
 
 #content {
-  background-color: #452066;
-  background-image: url("img/desktop/logo.png"), url("img/desktop/bg.png");
+  background-color: #6d33a0;
+  background-image: url("../img/desktop/logo.png"), url("../img/desktop/bg.png");
   background-position: top left, center;
   background-repeat: no-repeat; }
 
@@ -276,12 +294,12 @@ body.vaporwave #chat_send {
   left: 0;
   width: 100%;
   height: 30px;
-  background-image: url("img/desktop/taskbar.png");
+  background-image: url("../img/desktop/taskbar.png");
   background-size: 100% 100%;
   z-index: 999; }
 
 #chat_tray {
-  background-image: url("img/desktop/notif_left.png"), url("img/desktop/notif.png");
+  background-image: url("../img/desktop/notif_left.png"), url("../img/desktop/notif.png");
   background-repeat: no-repeat;
   background-position: left;
   background-size: 5px 30px, 100% 100%;
@@ -296,7 +314,7 @@ body.vaporwave #chat_send {
 #chat_send {
   width: 100px;
   user-select: none;
-  background-image: url("img/desktop/start.png");
+  background-image: url("../img/desktop/start.png");
   background-size: 100%;
   background-repeat: no-repeat;
   box-sizing: border-box;
@@ -338,11 +356,11 @@ body.vaporwave #chat_send {
   margin: 2px 0px; }
 
 #btn_tile {
-  background-image: url("img/desktop/tile.png"); }
+  background-image: url("../img/desktop/tile.png"); }
 
 #page_login {
   background-color: #8b5adc;
-  background-image: url("img/logon/logo.png"), url("img/logon/top.png"), url("img/logon/bottom.png"), url("img/logon/topleft.png"), url("img/logon/divider.png");
+  background-image: url("../img/logon/logo.png"), url("../img/logon/top.png"), url("../img/logon/bottom.png"), url("../img/logon/topleft.png"), url("../img/logon/divider.png");
   background-position: center, top, bottom, top left, center;
   background-size: auto, 100% 100px, 100% 122px, auto, 1px 100%;
   background-repeat: no-repeat; }
@@ -354,7 +372,7 @@ body.vaporwave #chat_send {
   flex-wrap: wrap; }
 
 #login_card {
-  background-image: url("img/logon/card.png");
+  background-image: url("../img/logon/card.png");
   width: 353px;
   height: 70px;
   position: absolute;
@@ -375,7 +393,7 @@ body.vaporwave #chat_send {
 #login_readme {
   color: #444;
   padding: 12px;
-  bottom: 15%;
+  bottom: 24%;
   width: auto;
   transform: translateX(-50%);
   -webkit-transform: translateX(-50%);
@@ -404,7 +422,7 @@ body.vaporwave #chat_send {
   position: absolute;
   width: 20px;
   height: 20px;
-  background-image: url("img/logon/go.png");
+  background-image: url("../img/logon/go.png");
   background-size: 100%;
   background-repeat: no-repeat; }
   #login_go:hover {
@@ -433,11 +451,10 @@ body.vaporwave #chat_send {
   bottom: 16px;
   font-size: 16px;
   text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5); }
-  
 
 @media screen and (max-height: 550px) {
   #page_login {
-    background-image: url("img/logon/logo.png"), url("img/logon/topleft.png");
+    background-image: url("../img/logon/logo.png"), url("../img/logon/topleft.png");
     background-position: center, 0 -100px;
     background-size: auto, auto;
     background-repeat: no-repeat; }
@@ -459,13 +476,13 @@ body.vaporwave #chat_send {
     display: none; } }
 @media screen and (max-width: 560px) {
   #page_login {
-    background-image: url("img/logon/logo.mobile.png"), url("img/logon/topleft.png");
+    background-image: url("../img/logon/logo.mobile.png"), url("../img/logon/topleft.png");
     background-position: center, 0 -100px;
     background-size: auto, auto;
     background-repeat: no-repeat; }
 
   #login_card {
-    background-image: url("img/logon/card.mobile.png");
+    background-image: url("../img/logon/card.mobile.png");
     width: 223px;
     height: 70px;
     margin-left: -112px;
@@ -493,7 +510,7 @@ body.vaporwave #chat_send {
   box-sizing: border-box;
   overflow: auto; }
 
-#page_error, #page_ban, #page_unsupp, #page_error105, #page_error106, #page_error104 {
+#page_error, #page_ban, #page_unsupp {
   background-color: rgba(0, 0, 0, 0.5); }
 
 /*!
@@ -501,7 +518,7 @@ body.vaporwave #chat_send {
  *
  * Version: v@VERSION
  *
- * Authors: BjÃ¶rn Brala (SWIS.nl), Rodney Rehm, Addy Osmani (patches for FF)
+ * Authors: Björn Brala (SWIS.nl), Rodney Rehm, Addy Osmani (patches for FF)
  * Web: http://swisnl.github.io/jQuery-contextMenu/
  *
  * Copyright (c) 2011-@YEAR SWIS BV and contributors
@@ -624,4 +641,346 @@ body.vaporwave #chat_send {
 
 .context-menu-accesskey {
   text-decoration: underline; }
-  
+
+/*# sourceMappingURL=style.min.css.map */
+
+gay-big {
+    font-size: 1.5em;
+}
+
+gay-spoiler {
+    background-color: darkslategrey;
+    border-radius: 3px;
+    color: transparent;
+    user-select: none;
+    transition: background-color 0.2s, color 0.2s;
+    cursor: pointer;
+}
+
+gay-spoiler:hover {
+    background-color: #777;
+}
+
+gay-spoiler.reveal {
+    background-color: #5555;
+    color: black;
+    user-select: all;
+    cursor: auto;
+}
+
+gay-rainbow {
+    background-image: linear-gradient(90deg, 
+        #ff0000 0%, 
+        #ff8000 14%, 
+        #ffff00 28%, 
+        #80ff00 42%, 
+        #00ff00 56%, 
+        #00ff80 70%, 
+        #00ffff 84%, 
+        #0080ff 100%);
+    background-size: 400% 100%;
+    background-clip: text;
+    -webkit-background-clip: text;
+    color: transparent;
+    animation: rainbow-move 3s linear infinite;
+}
+
+@keyframes rainbow-move {
+    0% {
+        background-position: 0% 0%;
+    }
+    100% {
+        background-position: 400% 0%;
+    }
+}
+
+gay-code {
+    border: 1px solid #bbb;
+    background-color: #ddd;
+    border-radius: 4px;
+    font: monospace;
+    padding: 0 0.2em;
+}
+
+gay-comic {
+    font-family: 'Comic Sans MS', cursive;
+    color: #9e2929;
+}
+
+#chat_log {
+    background-color: #424242;
+    background-color: rgba(84, 13, 120, 0.45);
+    position: absolute;
+    bottom: 0px;
+    margin-bottom: 30px;
+    left: 0px;
+    width: 100%;
+    height: 150px;
+    font-size: 12px;
+    font-family: "Ubuntu Mono", monospace;
+    border-top: solid 1px #f2f2f2;
+    color: #fafafa;
+    transition: all 0.6s cubic-bezier(0.23, 1, 0.32, 1);
+}
+#chat_log .clc-maximize {
+    display: none;
+}
+#chat_log .clc-minimize {
+    display: none;
+}
+#chat_log .clc-status-idle {
+    display: none;
+}
+#chat_log .clc-status-refreshing {
+    display: none;
+}
+#chat_log .clc-status-muted {
+    display: none;
+}
+#chat_log .clc-status-unmuted {
+    display: none;
+}
+#chat_log .clc-status-sapi-disabled {
+    display: none;
+}
+#chat_log .clc-status-sapi-enabled {
+    display: none;
+}
+#chat_log.status-sapi-disabled .clc-status-sapi-disabled {
+    display: block;
+}
+#chat_log.status-sapi-disabled .clc-status-sapi-enabled {
+    display: none !important;
+}
+#chat_log.status-sapi-enabled .clc-status-sapi-enabled {
+    display: block;
+}
+#chat_log.status-sapi-enabled .status-sapi-disabled {
+    display: none !important;
+}
+#chat_log.status-muted .clc-status-muted {
+    display: block;
+}
+#chat_log.status-muted .clc-status-unmuted {
+    display: none !important;
+}
+#chat_log.status-unmuted .clc-status-unmuted {
+    display: block;
+}
+#chat_log.status-unmuted .clc-status-muted {
+    display: none !important;
+}
+#chat_log.status-idle .clc-status-idle {
+    display: block;
+}
+#chat_log.status-idle .clc-status-refreshing {
+    display: none !important;
+}
+#chat_log.status-refreshing .clc-status-refreshing {
+    display: block;
+}
+#chat_log.status-refreshing .clc-status-idle {
+    display: none !important;
+}
+#chat_log.minimized {
+    height: 20px;
+}
+#chat_log.minimized .clc-maximize {
+    display: block;
+}
+#chat_log.minimized .clc-minimize {
+    display: none !important;
+}
+#chat_log.maximized {
+    height: 150px;
+}
+#chat_log.maximized .clc-minimize {
+    display: block;
+}
+#chat_log.maximized .clc-maximize {
+    display: none !important;
+}
+
+/* Make chat log visible by default */
+#chat_log {
+    height: 150px;
+}
+#chat_log .clc-minimize {
+    display: block;
+}
+#chat_log .clc-maximize {
+    display: none;
+}
+
+#chat_log #chat_log_header {
+    display: flex;
+    flex-flow: row nowrap;
+    position: absolute;
+    top: 0px;
+    left: 0px;
+    right: 0px;
+    width: 100%;
+    height: 20px;
+    background-color: rgba(0, 0, 0, 0.25);
+    border-bottom: 1px solid #5b1784;
+}
+#chat_log #chat_log_header .clh-col {
+    flex-grow: 1;
+}
+#chat_log #chat_log_header .clh-col#chat_log_status {
+    flex-grow: 3;
+}
+#chat_log_controls ul i {
+    cursor: pointer;
+}
+#chat_log #chat_log_header .clh-col#chat_log_controls ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    height: 100%;
+    text-align: right;
+    padding-right: 8px;
+}
+#chat_log #chat_log_header .clh-col#chat_log_controls ul li {
+    display: inline-block;
+    margin-left: 10px;
+    font-size: 14px;
+    padding-top: 3px;
+    color: #bdbdbd;
+}
+#chat_log #chat_log_header .clh-col#chat_log_controls ul li:hover {
+    color: #eeeeee;
+}
+#chat_log #chat_log_header .clh-col#chat_log_controls ul li span.clc-minmax {
+    transition: all 0.6s cubic-bezier(0.23, 1, 0.32, 1);
+    cursor: pointer;
+    user-select: none;
+}
+#chat_log #chat_log_header .clh-col#chat_log_controls ul li i.clc_con {
+    color: #c0392b;
+}
+#chat_log #chat_log_header .clh-col#chat_log_controls ul li i.clc_con.disconnected {
+    color: #c0392b;
+}
+#chat_log #chat_log_header .clh-col#chat_log_controls ul li i.clc_con.connected {
+    color: #aed581;
+}
+#chat_log #chat_log_list {
+    width: 100%;
+    margin-top: 20px;
+    height: 130px;
+    overflow-x: hidden;
+    overflow-y: scroll;
+}
+#chat_log #chat_log_list ul {
+    margin: 0 auto;
+    padding: 2px;
+    padding-top: 0px;
+    list-style: none;
+}
+#chat_log #chat_log_list ul li.bonzi-message {
+    cursor: default;
+}
+#chat_log #chat_log_list ul li.bonzi-message * {
+    cursor: default;
+}
+#chat_log #chat_log_list ul li.bonzi-message span {
+    font-family: "Ubuntu Mono", monospace;
+}
+#chat_log #chat_log_list ul li.bonzi-message span.bonzi-name {
+    cursor: pointer;
+}
+#chat_log #chat_log_list ul li.bonzi-message span.bonzi-name .bonzi-name-icon {
+    height: 12px;
+    font-size: 10px;
+    line-height: 12px;
+    vertical-align: middle;
+    margin-right: 3px;
+}
+#chat_log #chat_log_list ul li.bonzi-message span.body {
+    word-break: break-all;
+}
+#chat_log #chat_log_list ul li.bonzi-message span.body i {
+    line-height: 12px;
+    font-size: 12px;
+    height: 12px;
+    vertical-align: bottom;
+    transition: all 0.6s cubic-bezier(0.23, 1, 0.32, 1);
+}
+#chat_log #chat_log_list ul li.bonzi-message span.body i.color-youtube {
+    color: #e53935;
+}
+#chat_log #chat_log_list ul li.bonzi-message span.body i.color-youtube:hover,
+#chat_log #chat_log_list ul li.bonzi-message span.body i.color-youtube:active {
+    color: #ef5350;
+}
+#chat_log #chat_log_list ul li.bonzi-message.bonzi-event {
+	font-size: 13px;
+    font-weight: bold;
+    font-style: italic;
+    color: #ffffff;
+}
+/*#chat_log #chat_log_list ul li.bonzi-message.bonzi-event .event-source {
+    text-transform: capitalize;
+}*/
+#chat_log #chat_log_list ul li.bonzi-message.bonzi-event .timestamp {
+    color: #fafafa;
+    font-style: normal !important;
+}
+#chat_log #chat_log_list ul li.bonzi-message.bonzi-event .log-discord {
+    font-weight: bold;
+}
+#chat_log #chat_log_list ul li.bonzi-message.bonzi-event .log-discord .log-discord-link {
+    color: #3498db;
+    text-decoration: none;
+    font-weight: bold;
+}
+#chat_log #chat_log_list #cll-glue-toggle {
+    position: absolute;
+    font-size: 20px;
+    margin: 0 auto;
+    bottom: 5px;
+    left: 50%;
+    transform: translate(-50%, 0);
+    background-color: rgba(98, 33, 142, 0.5);
+    transition: all 0.6s cubic-bezier(0.23, 1, 0.32, 1);
+}
+#chat_log #chat_log_list #cll-glue-toggle i {
+    color: #ffeb3b;
+    opacity: 0.7;
+    transition: all 0.6s cubic-bezier(0.23, 1, 0.32, 1);
+}
+#chat_log #chat_log_list #cll-glue-toggle i:hover,
+#chat_log #chat_log_list #cll-glue-toggle i:active {
+    color: #fdd835;
+    opacity: 1;
+}
+#chat_log.unglued #cll-glue-toggle {
+    display: block !important;
+}
+#chat_log.glued #cll-glue-toggle {
+    opacity: 0;
+    pointer-events: none;
+}
+
+#chat_log_list::-webkit-scrollbar-track {
+    -webkit-box-shadow: inset 0 0 6px rgba(255, 255, 255, 0.3);
+    background-color: transparent;
+}
+
+#chat_log_list::-webkit-scrollbar {
+    width: 6px;
+    background-color: transparent;
+}
+
+#chat_log_list::-webkit-scrollbar-thumb {
+    background-color: #9b59b6;
+    border: 2px solid #8e44ad;
+}
+
+.no_selection {
+  user-select: none;
+  -webkit-user-select: none; }
+
+.hidden {
+  display: none; }

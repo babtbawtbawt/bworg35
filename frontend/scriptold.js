@@ -1,21 +1,3 @@
-// Safety wrapper to prevent undefined property errors
-function safeSet(obj, property, value) {
-    if (obj && typeof obj === 'object') {
-        obj[property] = value;
-        return true;
-    }
-    return false;
-}
-
-// Safety wrapper for getting properties
-function safeGet(obj, property, defaultValue = null) {
-    if (obj && typeof obj === 'object' && property in obj) {
-        return obj[property];
-    }
-    return defaultValue;
-}
-
-
 "use strict";
 var passcode = "";
 var err = false;
@@ -42,14 +24,6 @@ function s4() {
         .substring(1);
 }
 function youtubeParser(a) {
-    // Handle YouTube Shorts URLs
-    var shortsMatch = /(?:youtube\.com\/shorts\/|youtu\.be\/shorts\/)([a-zA-Z0-9_-]{11})/;
-    var shortsResult = a.match(shortsMatch);
-    if (shortsResult && shortsResult[1]) {
-        return shortsResult[1];
-    }
-
-    // Handle regular YouTube URLs
     var b = /^.*((youtu.be\/)|(v\/)|(\/u\/\w\/)|(embed\/)|(watch\?))\??v?=?([^#\&\?]*).*/,
         c = a.match(b);
     return !(!c || 11 != c[7].length) && c[7];
@@ -103,7 +77,6 @@ function loadBonzis(a) {
         { id: "bonziPurple", src: "./img/bonzi/purple.png" },
         { id: "bonziRed", src: "./img/bonzi/red.png" },
         { id: "bonziPink", src: "./img/bonzi/pink.png" },
-        { id: "peedyagent", src: "./img/bonzi/peedy.png" },
         { id: "topjej", src: "./img/misc/topjej.png" },
     ]),
         loadQueue.on(
@@ -132,119 +105,7 @@ function login() {
 function errorFatal() {
     ("none" != $("#page_ban").css("display") && "none" != $("#page_kick").css("display")) || $("#page_error").show();
 }
-function showJimPopup() {
-    var popup = $('#jimPopup');
-    popup.css({
-        'left': ($(window).width() - popup.width()) / 2,
-        'top': ($(window).height() - popup.height()) / 2
-    }).show();
-
-    // Make draggable
-    var offset = null;
-    popup.on('mousedown', function(e) {
-        offset = {
-            left: e.clientX - $(this).offset().left,
-            top: e.clientY - $(this).offset().top
-        };
-    });
-
-    $(document).on('mousemove', function(e) {
-        if (offset) {
-            $('#jimPopup').css({
-                'left': e.clientX - offset.left,
-                'top': e.clientY - offset.top
-            });
-        }
-    });
-
-    $(document).on('mouseup', function() {
-        offset = null;
-    });
-
-    // Close on click
-    popup.one('click', function() {
-        $(this).hide();
-    });
-}
-
-function showBluePopup() {
-    var popup = $('#bluePopup');
-    popup.css({
-        'left': ($(window).width() - popup.width()) / 2,
-        'top': ($(window).height() - popup.height()) / 2
-    }).show();
-
-    // Make draggable
-    var offset = null;
-    popup.on('mousedown', function(e) {
-        offset = {
-            left: e.clientX - $(this).offset().left,
-            top: e.clientY - $(this).offset().top
-        };
-    });
-
-    $(document).on('mousemove', function(e) {
-        if (offset) {
-            $('#bluePopup').css({
-                'left': e.clientX - offset.left,
-                'top': e.clientY - offset.top
-            });
-        }
-    });
-
-    $(document).on('mouseup', function() {
-        offset = null;
-    });
-
-    // Close on click
-    popup.one('click', function() {
-        $(this).hide();
-    });
-}
-
 function setup() {
-    // Set current time in welcome message
-    var currentTime = new Date().toLocaleTimeString();
-    if($("#welcome-timestamp").length) {
-        $("#welcome-timestamp").text("[" + currentTime + "]");
-    }
-
-    // Make chat log visible by default
-    $("#chat_log").removeClass("minimized").addClass("maximized");
-    $("#chat_log_list").removeClass("hidden").show();
-
-    // Chat log minimize/maximize functionality
-    $(".clc-minimize").click(function() {
-        $("#chat_log").removeClass("maximized").addClass("minimized");
-        $("#chat_log_list").hide();
-    });
-
-    $(".clc-maximize").click(function() {
-        $("#chat_log").removeClass("minimized").addClass("maximized");
-        $("#chat_log_list").show();
-    });
-
-    // Add chat log functionality
-    function addToChatLog(username, message, userColor) {
-        var timestamp = new Date().toLocaleTimeString();
-        var chatHtml = '<li class="bonzi-message cl-msg ng-scope">' +
-            '<span class="timestamp ng-binding">[' + timestamp + ']</span> ' +
-            '<span class="sep tn-sep"></span>' +
-            '<span class="bonzi-name ng-isolate-scope" style="color: ' + userColor + ';">' +
-                '<span class="ng-binding">' + username + ':</span>' +
-            '</span> ' +
-            '<span class="body">' + message + '</span>' +
-            '</li>';
-
-        $("#chat_log_list ul").append(chatHtml);
-
-        // Auto-scroll to bottom
-        var chatList = document.getElementById("chat_log_list");
-        chatList.scrollTop = chatList.scrollHeight;
-    }
-
-    // Talk event handler will be set up below with chat log integration
-
     $("#chat_send").click(sendInput),
         $("#chat_message").keypress(function (a) {
             13 == a.which && sendInput();
@@ -260,24 +121,8 @@ function setup() {
         }),
         socket.on("talk", function (a) {
             var b = bonzis[a.guid];
-            b.cancel(), b.runSingleEvent([{ type: "html", text: a.text, say: a.say || a.text }]);
-
-            // Add to chat log
-            var user = usersPublic[a.guid];
-            if (user) {
-                addToChatLog(user.name, a.text, user.color);
-            }
+            b.cancel(), b.runSingleEvent([{ type: "text", text: a.text }]);
         }),
-        socket.on("jimmy", function(a) {
-        showJimPopup();
-        });
-        socket.on("blue", function(a) {
-        showBluePopup();
-        });
-        socket.on("sticker", function(a) {
-            var b = bonzis[a.guid];
-            b.cancel(), b.runSingleEvent([{ type: "html", text: a.text, say: a.say }]);
-        });
         socket.on("joke", function (a) {
             var b = bonzis[a.guid];
             (b.rng = new Math.seedrandom(a.rng)), b.cancel(), b.joke();
@@ -310,21 +155,6 @@ function setup() {
             var b = bonzis[a.guid];
             b.cancel(), b.runSingleEvent(b.data.event_list_linux);
         }),
-        socket.on("bees", function (a) {
-            var b = bonzis[a.guid];
-            b.cancel(), b.runSingleEvent(b.data.event_list_bees);
-        });
-        socket.on("poll", function(data) {
-            showPoll(data);
-        }),
-
-        socket.on("pollUpdate", function(data) {
-            updatePollResults(data);
-        }),
-
-        socket.on("announce", function(data) {
-            showAnnouncement(data);
-        }),
 
         socket.on("leave", function (a) {
             var b = bonzis[a.guid];
@@ -334,14 +164,6 @@ function setup() {
                         this.deconstruct(), delete bonzis[a.guid], delete usersPublic[a.guid], usersUpdate();
                     }.bind(b, a)
                 );
-        });
-
-        socket.on("levelUpdate", function (a) {
-            window.userLevel = a.level;
-        });
-
-        socket.on("adminToolsUpdate", function (a) {
-            window.adminToolsEnabled = a.enabled;
         });
 }
 function usersUpdate() {
@@ -449,78 +271,41 @@ var _createClass = (function () {
                 $.contextMenu({
                     selector: this.selCanvas,
                     build: function (a, b) {
-                        var menuItems = {
-                            cancel: {
-                                name: "Cancel",
-                                callback: function () {
-                                    d.cancel();
-                                },
-                            },
-                            mute: {
-                                name: function () {
-                                    return d.mute ? "Unmute" : "Mute";
-                                },
-                                callback: function () {
-                                    d.cancel(), (d.mute = !d.mute);
-                                },
-                            },
-                            asshole: {
-                                name: "Call an Asshole",
-                                callback: function () {
-                                    socket.emit("command", { list: ["asshole", d.userPublic.name] });
-                                },
-                            },
-                            owo: {
-                                name: "Notice Bulge",
-                                callback: function () {
-                                    socket.emit("command", { list: ["owo", d.userPublic.name] });
-                                },
-                            },
-                        };
-
-                        // Add admin tools (always visible, but grayed out unless admin tools are enabled)
-                        var adminEnabled = window.adminToolsEnabled || false;
-
-                        menuItems.sep1 = "---------";
-                        menuItems.kick = {
-                            name: "Kick User",
-                            disabled: !adminEnabled,
-                            callback: function () {
-                                if (adminEnabled) {
-                                    socket.emit("command", { list: ["kick", d.userPublic.name] });
-                                }
-                            },
-                        };
-                        menuItems.ban = {
-                            name: "Ban User (10 min)",
-                            disabled: !adminEnabled,
-                            callback: function () {
-                                if (adminEnabled) {
-                                    socket.emit("command", { list: ["ban", d.userPublic.name, "10"] });
-                                }
-                            },
-                        };
-                        menuItems.ban30 = {
-                            name: "Ban User (30 min)",
-                            disabled: !adminEnabled,
-                            callback: function () {
-                                if (adminEnabled) {
-                                    socket.emit("command", { list: ["ban", d.userPublic.name, "30"] });
-                                }
-                            },
-                        };
-                        menuItems.permban = {
-                            name: "Permanent Ban",
-                            disabled: !adminEnabled,
-                            callback: function () {
-                                if (adminEnabled) {
-                                    socket.emit("command", { list: ["permban", d.userPublic.name] });
-                                }
-                            },
-                        };
-
                         return {
-                            items: menuItems,
+                            items: {
+                                cancel: {
+                                    name: "Cancel",
+                                    callback: function () {
+                                        d.cancel();
+                                    },
+                                },
+                                mute: {
+                                    name: function () {
+                                        return d.mute ? "Unmute" : "Mute";
+                                    },
+                                    callback: function () {
+                                        d.cancel(), (d.mute = !d.mute);
+                                    },
+                                },
+                                asshole: {
+                                    name: "Call an Asshole",
+                                    callback: function () {
+                                        socket.emit("command", { list: ["asshole", d.userPublic.name] });
+                                    },
+                                },
+                                owo: {
+                                    name: "Notice Bulge",
+                                    callback: function () {
+                                        socket.emit("command", { list: ["owo", d.userPublic.name] });
+                                    },
+                                },
+                                joke: {
+                                    name: "Tell a Joke",
+                                    callback: function () {
+                                        socket.emit("command", { list: ["joke", d.userPublic.name] });
+                                    },
+                                },
+                            },
                         };
                     },
                     animation: { duration: 175, show: "fadeIn", hide: "fadeOut" },
@@ -661,44 +446,6 @@ var _createClass = (function () {
                                     this.event.index++;
                                 }
                             }
-
-                            // Lipsync animation logic
-                            if (this.voiceSource && !this.voiceSource.paused && this.voiceSource.duration > 0) {
-                                var percent = (this.voiceSource.currentTime / this.voiceSource.duration) * 100;
-
-                                if (this.sprite.currentAnimation == "idle" || this.sprite.currentAnimation == "lipsync0" || this.sprite.currentAnimation == "lipsync1" || this.sprite.currentAnimation == "lipsync2" || this.sprite.currentAnimation == "lipsync3") {
-                                    if (percent < 35) {
-                                        this.sprite.gotoAndPlay("idle");
-                                    } else if (percent >= 35 && percent < 40) {
-                                        this.sprite.gotoAndPlay("lipsync0");
-                                    } else if (percent >= 40 && percent < 50) {
-                                        this.sprite.gotoAndPlay("lipsync1");
-                                    } else if (percent >= 50 && percent < 55) {
-                                        this.sprite.gotoAndPlay("lipsync2");
-                                    } else if (percent >= 55 && percent < 60) {
-                                        this.sprite.gotoAndPlay("lipsync2");
-                                    } else if (percent >= 60) {
-                                        this.sprite.gotoAndPlay("lipsync3");
-                                    }
-                                }
-
-                                if (this.sprite.currentAnimation == "shrug_still" || this.sprite.currentAnimation == "shrug_lipsync0" || this.sprite.currentAnimation == "shrug_lipsync1" || this.sprite.currentAnimation == "shrug_lipsync2" || this.sprite.currentAnimation == "shrug_lipsync3") {
-                                    if (percent < 35) {
-                                        this.sprite.gotoAndPlay("shrug_still");
-                                    } else if (percent >= 35 && percent < 40) {
-                                        this.sprite.gotoAndPlay("shrug_lipsync0");
-                                    } else if (percent >= 40 && percent < 50) {
-                                        this.sprite.gotoAndPlay("shrug_lipsync1");
-                                    } else if (percent >= 50 && percent < 55) {
-                                        this.sprite.gotoAndPlay("shrug_lipsync2");
-                                    } else if (percent >= 55 && percent < 60) {
-                                        this.sprite.gotoAndPlay("shrug_lipsync2");
-                                    } else if (percent >= 60) {
-                                        this.sprite.gotoAndPlay("shrug_lipsync3");
-                                    }
-                                }
-                            }
-
                             this.willCancel && (this.cancel(), (this.willCancel = !1)), this.needsUpdate && (this.stage.update(), (this.needsUpdate = !1));
                         }
                     },
@@ -728,11 +475,25 @@ var _createClass = (function () {
                                 function () {
                                     d.clearDialog();
                                 },
-                                function (voiceAudio) {
-                                    d.goingToSpeak || voiceAudio.stop(), (d.voiceSource = voiceAudio);
+                                function (a) {
+                                    d.goingToSpeak || a.stop(), (d.voiceSource = a);
                                 }
                             );
-
+                        //nasr red text RIGHTY HERE BOY!
+                        var e = "&gt;" == a.substring(0, 4) || "jim megatron" == a[0];
+                        this.$dialogCont[c ? "html" : "text"](a)[e ? "addClass" : "removeClass"]("bubble_nasrred").css("display", "block"),
+                            this.stopSpeaking(),
+                            (this.goingToSpeak = !0),
+                            speak.play(
+                                b,
+                                { pitch: this.userPublic.pitch, speed: this.userPublic.speed },
+                                function () {
+                                    d.clearDialog();
+                                },
+                                function (a) {
+                                    d.goingToSpeak || a.stop(), (d.voiceSource = a);
+                                }
+                            );
                     },
                 },
                 {
@@ -767,9 +528,19 @@ var _createClass = (function () {
                 },
                 {
                     key: "youtube",
-                    value: function(vid) {
+                    value: function (a) {
                         if (!this.mute) {
-                            this.$dialogCont.html('\n\t\t\t\t\t<iframe type="text/html" width="173" height="173" \n\t\t\t\t\tsrc="https://www.youtube.com/embed/' + vid + '?autoplay=1&mute=0&enablejsapi=1" \n\t\t\t\t\tstyle="width:173px;height:173px"\n\t\t\t\t\tframeborder="0"\n\t\t\t\t\tallow="autoplay; encrypted-media"\n\t\t\t\t\tallowfullscreen="allowfullscreen"\n\t\t\t\t\tmozallowfullscreen="mozallowfullscreen"\n\t\t\t\t\tmsallowfullscreen="msallowfullscreen"\n\t\t\t\toallowfullscreen="oallowfullscreen"\n\t\t\t\t\twebkitallowfullscreen="webkitallowfullscreen"\n\t\t\t\t\t></iframe>\n\t\t\t\t'), this.$dialog.show()
+                            var b = "iframe";
+                            this.$dialogCont.html(
+                                "\n\t\t\t\t\t<" +
+                                    b +
+                                    ' type="text/html" width="173" height="173" \n\t\t\t\t\tsrc="https://www.youtube.com/embed/' +
+                                    a +
+                                    '?autoplay=1" \n\t\t\t\t\tstyle="width:173px;height:173px"\n\t\t\t\t\tframeborder="0"\n\t\t\t\t\tallowfullscreen="allowfullscreen"\n\t\t\t\t\tmozallowfullscreen="mozallowfullscreen"\n\t\t\t\t\tmsallowfullscreen="msallowfullscreen"\n\t\t\t\t\toallowfullscreen="oallowfullscreen"\n\t\t\t\t\twebkitallowfullscreen="webkitallowfullscreen"\n\t\t\t\t\t></' +
+                                    b +
+                                    ">\n\t\t\t\t"
+                            ),
+                                this.$dialog.show();
                         }
                     },
                 },
@@ -818,38 +589,11 @@ var _createClass = (function () {
                     key: "updateSprite",
                     value: function (a) {
                         var b = BonziHandler.stage;
-                        this.cancel();
-                        if (this.sprite) {
-                            b.removeChild(this.sprite);
-                        }
-                        
-                        if (this.colorPrev != this.color) {
-                            delete this.sprite;
-                            
-                            var spriteSheet;
-                            try {
-                                if (this.color.startsWith("http://") || this.color.startsWith("https://")) {
-                                    spriteSheet = BonziHandler.createCustomSpriteSheet(this.color);
-                                } else {
-                                    spriteSheet = BonziHandler.spriteSheets[this.color];
-                                }
-                                
-                                if (spriteSheet) {
-                                    this.sprite = new createjs.Sprite(spriteSheet, a ? "gone" : "idle");
-                                } else {
-                                    // Fallback to purple if sprite creation fails
-                                    this.sprite = new createjs.Sprite(BonziHandler.spriteSheets["purple"], a ? "gone" : "idle");
-                                }
-                            } catch (error) {
-                                console.warn("Sprite creation failed, using fallback:", error);
-                                this.sprite = new createjs.Sprite(BonziHandler.spriteSheets["purple"], a ? "gone" : "idle");
-                            }
-                        }
-                        
-                        if (this.sprite) {
-                            b.addChild(this.sprite);
+                        this.cancel(),
+                            b.removeChild(this.sprite),
+                            this.colorPrev != this.color && (delete this.sprite, (this.sprite = new createjs.Sprite(BonziHandler.spriteSheets[this.color], a ? "gone" : "idle"))),
+                            b.addChild(this.sprite),
                             this.move();
-                        }
                     },
                 },
             ]),
@@ -915,18 +659,6 @@ var _createClass = (function () {
                 grin_still: 184,
                 grin_back: { frames: range(184, 182), next: "idle", speed: 1 },
                 backflip: [331, 343, "idle", 1],
-                lipsync0: 344,
-                lipsync1: 345,
-                lipsync2: 346,
-                lipsync3: 347,
-                lipsync4: 348,
-                lipsync5: 349,
-                lipsync6: 350,
-                shrug_lipsync0: 351,
-                shrug_lipsync1: 352,
-                shrug_lipsync2: 353,
-                shrug_lipsync3: 354,
-                shrug_lipsync4: 355,
             },
         },
         to_idle: {
@@ -963,18 +695,6 @@ var _createClass = (function () {
             grin_still: "grin_back",
             backflip: "idle",
             idle: "idle",
-            lipsync0: 344,
-            lipsync1: 345,
-            lipsync2: 346,
-            lipsync3: 347,
-            lipsync4: 348,
-            lipsync5: 349,
-            lipsync6: 350,
-            shrug_lipsync0: 351,
-            shrug_lipsync1: 352,
-            shrug_lipsync2: 353,
-            shrug_lipsync3: 354,
-            shrug_lipsync4: 355,
         },
         pass_idle: ["gone"],
         event_list_joke_open: [
@@ -1121,182 +841,43 @@ var _createClass = (function () {
             say: "I'm having an IT intern install Internet Explorer 6, aquarium screensavers and PC Doctor 2016 on my body. From now on I want you guys to call me Joel and respect my right to meme from above and meme needlessly.",
         },
         {
-
-                  text: "If you can’t accept me you’re a gorillaphobe and need to check your file permissions. Thank you for being so understanding.",
+            type: "text",
+            text: "If you can’t accept me you’re a gorillaphobe and need to check your file permissions. Thank you for being so understanding.",
             say: "If you cant accept me your a gorillaphobe and need to check your file permissions. Thank you for being so understanding.",
         },
         { type: "idle" },
-    ]);
-    BonziData.event_list_linux = [{
+    ]),BonziData.event_list_linux = [{
     type: "text",
-    text: "I'd just like to interject for a moment. What you're referring to as Linux, is in fact, BONZI/Linux, or as I've recently taken to calling it, BONZI plus Linux."
+    text: "I'd just like to interject for a moment. What you’re referring to as Linux, is in fact, BONZI/Linux, or as I’ve recently taken to calling it, BONZI plus Linux."
 }, {
     type: "text",
     text: "Linux is not an operating system unto itself, but rather another free component of a fully functioning BONZI system made useful by the BONZI corelibs, shell utilities and vital system components comprising a full OS as defined by M.A.L.W.A.R.E."
 }, {
     type: "text",
-    text: "Many computer users run a modified version of the BONZI system every day, without realizing it. Through a peculiar turn of events, the version of BONZI which is widely used today is often called Linux, and many of its users are not aware that it is basically the BONZI system, developed by the BONZI Project."
+    text: "Many computer users run a modified version of the BONZI system every day, without realizing it. Through a peculiar turn of events, the version of BONZI which is widely used today is often called “Linux”, and many of its users are not aware that it is basically the BONZI system, developed by the BONZI Project."
 }, {
     type: "text",
-    text: "There really is a Linux, and these people are using it, but it is just a part of the system they use. Linux is the kernel: the program in the system that allocates the machine's memes to the other programs that you run. "
+    text: "There really is a Linux, and these people are using it, but it is just a part of the system they use. Linux is the kernel: the program in the system that allocates the machine’s memes to the other programs that you run. "
 }, {
     type: "text",
     text: "The kernel is an essential part of an operating system, but useless by itself; it can only function in the context of a complete operating system, such as systemd."
 }, {
     type: "text",
-    text: "Linux is normally used in combination with the BONZI operating system: the whole system is basically BONZI with Linux added, or BONZI/Linux. All the so-called Linux distributions are really distributions of BONZI/Linux."
-}];
-    (BonziData.event_list_bees = [
-        { type: "text", text: "According to all known laws" },
-        { type: "text", text: "of aviation," },
-        { type: "text", text: "there is no way a bee" },
-        { type: "text", text: "should be able to fly." },
-        { type: "text", text: "Its wings are too small to get" },
-        { type: "text", text: "its fat little body off the ground." },
-        { type: "text", text: "The bee, of course, flies anyway" },
-        { type: "text", text: "because bees don't care" },
-        { type: "text", text: "what humans think is impossible." },
-        { type: "text", text: "Yellow, black. Yellow, black." },
-        { type: "text", text: "Yellow, black. Yellow, black." },
-        { type: "text", text: "Ooh, black and yellow!" },
-        { type: "text", text: "Let's shake it up a little." },
-        { type: "text", text: "Barry! Breakfast is ready!" },
-        { type: "text", text: "Coming!" },
-        { type: "text", text: "Hang on a second." },
-        { type: "text", text: "Hello?" },
-        { type: "text", text: "Barry?" },
-        { type: "text", text: "Adam?" },
-        { type: "text", text: "Can you believe this is happening?" },
-        { type: "text", text: "I can't. I'll pick you up." },
-        { type: "text", text: "Looking sharp." },
-        { type: "text", text: "Use the stairs. Your father" },
-        { type: "text", text: "paid good money for those." },
-        { type: "text", text: "Sorry. I'm excited." },
-        { type: "text", text: "Here's the graduate." },
-        { type: "text", text: "We're very proud of you, son." },
-        { type: "text", text: "A perfect report card, all B's." },
-        { type: "text", text: "Very proud." },
-        { type: "text", text: "Ma! I got a thing going here." },
-        { type: "text", text: "You got lint on your fuzz." },
-        { type: "text", text: "Ow! That's me!" },
-        { type: "text", text: "Wave to us! We'll be in row 118,000." },
-        { type: "text", text: "Bye!" },
-        { type: "text", text: "Barry, I told you," },
-        { type: "text", text: "stop flying in the house!" },
-        { type: "text", text: "Hey, Adam." },
-        { type: "text", text: "Hey, Barry." },
-        { type: "text", text: "Is that fuzz gel?" },
-        { type: "text", text: "A little. Special day, graduation." },
-        { type: "text", text: "Never thought I'd make it." },
-        { type: "text", text: "Three days grade school," },
-        { type: "text", text: "three days high school." },
-        { type: "text", text: "Those were awkward." },
-        { type: "text", text: "Three days college. I'm glad I took" },
-        { type: "text", text: "a day and hitchhiked around the hive." },
-        { type: "text", text: "You did come back different." },
-        { type: "text", text: "Hi, Barry." },
-        { type: "text", text: "Artie, growing a mustache? Looks good." },
-        { type: "text", text: "Hear about Frankie?" },
-        { type: "text", text: "Yeah." },
-        { type: "text", text: "You going to the funeral?" },
-        { type: "text", text: "No, I'm not going." },
-        { type: "text", text: "Everybody knows," },
-        { type: "text", text: "sting someone, you die." },
-        { type: "text", text: "Don't waste it on a squirrel." },
-        { type: "text", text: "Such a hothead." },
-        { type: "text", text: "I guess he could have" },
-        { type: "text", text: "just gotten out of the way." },
-        { type: "text", text: "I love this incorporating" },
-        { type: "text", text: "an amusement park into our day." },
-        { type: "text", text: "That's why we don't need vacations." },
-        { type: "text", text: "Boy, quite a bit of pomp..." },
-        { type: "text", text: "under the circumstances." },
-        { type: "text", text: "Well, Adam, today we are men." },
-        { type: "text", text: "We are!" },
-        { type: "text", text: "Bee-men." },
-        { type: "text", text: "Amen!" },
-        { type: "text", text: "Hallelujah!" },
-        { type: "text", text: "Students, faculty, distinguished bees," },
-        { type: "text", text: "please welcome Dean Buzzwell." },
-        { type: "text", text: "Welcome, New Hive City" },
-        { type: "text", text: "graduating class of..." },
-        { type: "text", text: "...9:15." },
-        { type: "text", text: "That concludes our ceremonies." },
-        { type: "text", text: "And begins your career" },
-        { type: "text", text: "at Honex Industries!" },
-        { type: "text", text: "Will we pick ourjob today?" },
-        { type: "text", text: "I heard it's just orientation." },
-        { type: "text", text: "Heads up! Here we go." },
-        { type: "text", text: "Keep your hands and antennas" },
-        { type: "text", text: "inside the tram at all times." },
-        { type: "text", text: "Wonder what it'll be like?" },
-        { type: "text", text: "A little scary." },
-        { type: "text", text: "Welcome to Honex," },
-        { type: "text", text: "a division of Honesco" },
-        { type: "text", text: "and a part of the Hexagon Group." },
-        { type: "text", text: "This is it!" },
-        { type: "text", text: "Wow." },
-        { type: "text", text: "Wow." },
-        { type: "text", text: "We know that you, as a bee," },
-        { type: "text", text: "have worked your whole life" },
-        { type: "text", text: "to get to the point where you" },
-        { type: "text", text: "can work for your whole life." },
-        { type: "text", text: "Honey begins when our valiant Pollen" },
-        { type: "text", text: "Jocks bring the nectar to the hive." },
-        { type: "text", text: "Our top-secret formula" },
-        { type: "text", text: "is automatically color-corrected," },
-        { type: "text", text: "scent-adjusted and bubble-contoured" },
-        { type: "text", text: "into this soothing sweet syrup" },
-        { type: "text", text: "with its distinctive" },
-        { type: "text", text: "golden glow you know as..." },
-        { type: "text", text: "Honey!" },
-        { type: "text", text: "That girl was hot." },
-        { type: "text", text: "She's my cousin!" },
-        { type: "text", text: "She is?" },
-        { type: "text", text: "Yes, we're all cousins." },
-        { type: "text", text: "Right. You're right." },
-        { type: "text", text: "At Honex, we constantly strive" },
-        { type: "text", text: "to improve every aspect" },
-        { type: "text", text: "of bee existence." },
-        { type: "text", text: "These bees are stress-testing" },
-        { type: "text", text: "a new helmet technology." },
-        { type: "text", text: "What do you think he makes?" },
-        { type: "text", text: "Not enough." },
-        { type: "text", text: "Here we have our latest advancement," },
-        { type: "text", text: "the Krelman." },
-        { type: "text", text: "What does that do?" },
-        { type: "text", text: "Catches that little strand of honey" },
-        { type: "text", text: "that hangs after you pour it." },
-        { type: "text", text: "Saves us millions." }
-    ]);
+    text: "Linux is normally used in combination with the BONZI operating system: the whole system is basically BONZI with Linux added, or BONZI/Linux. All the so-called “Linux” distributions are really distributions of BONZI/Linux."
+}]
 
-
+    
     $(document).ready(function () {
         window.BonziHandler = new (function () {
             return (
                 (this.framerate = 1 / 15),
                 (this.spriteSheets = {}),
                 (this.prepSprites = function () {
-                    for (var a = ["black", "blue", "brown", "green", "purple", "red", "pink", "pope", "nas", "goldghayda", "bluestick", "sam", "nasr", "brutus", "golddonk","peedy"], b = 0; b < a.length; b++) {
+                    for (var a = ["black", "blue", "brown", "green", "purple", "red", "pink", "pope", "nas", "goldghayda", "bluestick", "sam", "nasr", "brutus", "golddonk"], b = 0; b < a.length; b++) {
                         var c = a[b],
                             d = { images: ["./img/bonzi/" + c + ".png"], frames: BonziData.sprite.frames, animations: BonziData.sprite.animations };
                         this.spriteSheets[c] = new createjs.SpriteSheet(d);
                     }
-                }),
-                (this.createCustomSpriteSheet = function (imageUrl) {
-                    if (!this.spriteSheets[imageUrl]) {
-                        try {
-                            var img = new Image();
-                            img.crossOrigin = "anonymous";
-                            img.src = imageUrl;
-                            var d = { images: [img], frames: BonziData.sprite.frames, animations: BonziData.sprite.animations };
-                            this.spriteSheets[imageUrl] = new createjs.SpriteSheet(d);
-                        } catch (error) {
-                            console.warn("Failed to create custom sprite sheet:", error);
-                            return this.spriteSheets["purple"]; // fallback to default
-                        }
-                    }
-                    return this.spriteSheets[imageUrl];
                 }),
                 this.prepSprites(),
                 (this.$canvas = $("#bonzi_canvas")),
@@ -1326,9 +907,7 @@ var _createClass = (function () {
                     function () {
                         for (var a = 0; a < usersAmt; a++) {
                             var b = usersKeys[a];
-                            if (bonzis[b] && typeof bonzis[b].update === 'function') {
-                                bonzis[b].update();
-                            }
+                            bonzis[b].update();
                         }
                         this.stage.tick();
                     }.bind(this),
@@ -1348,10 +927,7 @@ var _createClass = (function () {
                             var c = bonzis[b];
                             (c.userPublic = usersPublic[b]), c.updateName();
                             var d = usersPublic[b].color;
-                            if (c && c.color != d) {
-                                c.color = d;
-                                c.updateSprite();
-                            }
+                            c.color != d && ((c.color = d), c.updateSprite());
                         } else bonzis[b] = new Bonzi(b, usersPublic[b]);
                     }
                 }),
@@ -1378,7 +954,7 @@ var _createClass = (function () {
     Object.defineProperty(Array.prototype, "equals", { enumerable: !1 });
 var loadQueue = new createjs.LoadQueue(),
     loadDone = [],
-    loadNeeded = ["bonziBlack", "bonziBlue", "bonziBrown", "bonziGreen", "bonziPurple", "bonziRed", "bonziPink", "topjej", "jimmy", "blue"];
+    loadNeeded = ["bonziBlack", "bonziBlue", "bonziBrown", "bonziGreen", "bonziPurple", "bonziRed", "bonziPink", "topjej"];
 $(window).load(function () {
     $("#login_card").show(), $("#login_load").hide(), loadBonzis();
 });
@@ -1387,7 +963,6 @@ var undefined,
     socket = io("//" + hostname),
     usersPublic = {},
     bonzis = {},
-    userLevel = 0,
     debug = !0;
 $(function () {
     $("#login_go").click(loadTest),
@@ -1426,126 +1001,9 @@ if(err == false){
 }
         });
 
-
 });
 var usersAmt = 0,
-    usersKeys = [],
-    adminToolsEnabled = false;
-
-function showPoll(data) {
-    // Remove any existing poll
-    $("#pollPopup").remove();
-
-    var pollHtml = `
-        <div id="pollPopup" style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); 
-             background: #f5f5dc; border: 2px solid #000; padding: 20px; z-index: 1000; 
-             width: 400px; font-family: Tahoma, sans-serif;">
-            <div style="display: flex; align-items: center; margin-bottom: 15px;">
-                <img src="./img/ban/logo.png" style="width: 50px; height: 40px; margin-right: 10px;">
-                <div style="display: flex; align-items: center;">
-                    <span style="font-size: 10px; margin-right: 5px;"></span>
-                </div>
-            </div>
-            <h3 style="margin: 0 0 15px 0; font-size: 18px; color: #000;">${data.question}</h3>
-            <div id="pollButtons" style="margin-bottom: 15px;">
-                <div id="yesBtn" onclick="votePoll('${data.id}', 'yes')" style="background: #6b8e23; color: white; 
-                     padding: 8px 15px; margin-bottom: 5px; cursor: pointer; font-weight: bold;">
-                    Yes: <span id="yesCount" style="font-size: 18px; font-weight: bold;">0</span>
-                </div>
-                <div id="noBtn" onclick="votePoll('${data.id}', 'no')" style="background: #dc143c; color: white; 
-                     padding: 8px 15px; margin-bottom: 5px; cursor: pointer; font-weight: bold;">
-                    No: <span id="noCount" style="font-size: 18px; font-weight: bold;">0</span>
-                </div>
-            </div>
-            <button onclick="closePoll()" style="background: #808080; color: white; border: none; 
-                    padding: 5px 15px; cursor: pointer;">Close</button>
-        </div>
-    `;
-
-    $("body").append(pollHtml);
-    updatePollResults(data);
-}
-
-function updatePollResults(data) {
-    $("#yesCount").text(data.votes.yes);
-    $("#noCount").text(data.votes.no);
-}
-
-function votePoll(pollId, vote) {
-    socket.emit("vote", { pollId: pollId, vote: vote });
-}
-
-function closePoll() {
-    $("#pollPopup").remove();
-}
-
-function showAnnouncement(data) {
-    // Remove any existing announcement
-    $("#announcePopup").remove();
-
-    var announceHtml = `
-        <div id="announcePopup" style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); 
-             background: #f5f5dc; border: 2px solid #000; padding: 20px; z-index: 1000; 
-             width: 400px; font-family: Tahoma, sans-serif;">
-            <div style="margin-bottom: 15px;">
-                <strong>From: ${data.sender}</strong>
-            </div>
-            <div style="margin: 20px 0; font-size: 18px; text-align: center;">
-                ${data.message}
-            </div>
-            <button onclick="closeAnnouncement()" style="background: #808080; color: white; border: none; 
-                    padding: 5px 15px; cursor: pointer;">Close</button>
-        </div>
-    `;
-
-    $("body").append(announceHtml);
-}
-
-function closeAnnouncement() {
-    $("#announcePopup").remove();
-}
+    usersKeys = [];
 $(window).load(function () {
     document.addEventListener("touchstart", touchHandler, !0), document.addEventListener("touchmove", touchHandler, !0), document.addEventListener("touchend", touchHandler, !0), document.addEventListener("touchcancel", touchHandler, !0);
-});
-
-
-
-$(function() {
-	$("#login_go").click(loadTest),
-		$("#login_room").val(window.location.hash.slice(1)),
-		$("#login_name, #login_room").keypress(function (a) {
-			13 == a.which && login();
-		}),
-		socket.on("ban", function (a) {
-			$("#page_ban").show(), $("#ban_reason").html(a.reason), $("#ban_end").html(new Date(a.end).toString());
-		}),
-		socket.on("kick", function (a) {
-			$("#page_kick").show(), $("#kick_reason").html(a.reason);
-		}),
-		socket.on("loginFail", function (a) {
-			var b = { nameLength: "Name too long.", full: "Room is full.", nameMal: "Nice try. Why would anyone join a room named that anyway?" };
-			$("#login_card").show(),
-				$("#login_load").hide(),
-				$("#login_error")
-					.show()
-					.text("Error: " + b[a.reason] + " (" + a.reason + ")");
-		}),
-socket.on("errr", error=>{
-if(error.code == 105){
-err = true;
-document.getElementById("limitip").innerHTML = error.limit;
-$("#page_error105").show()
-}
-}),
-socket.on("stats", stat=>{
-document.getElementById("climit").innerHTML = "Alt Limit: "+stat.climit;
-}),
-        socket.on("disconnect", function (a) {
-
-if(err == false){
-            errorFatal();
-}
-        });
-
-
 });
