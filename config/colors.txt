@@ -5,11 +5,3 @@ green
 pink
 black
 brown
-dress
-orange
-pink
-troll
-yellow
-white
-inverted
-jabba
