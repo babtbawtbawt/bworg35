@@ -1,0 +1,64 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voice Chat - BonziWORLD</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="app">
+        <header>
+            <h1>🎤 BonziWORLD Voice Chat</h1>
+            <div id="status">Disconnected</div>
+        </header>
+
+        <main>
+            <div id="controls" style="display: block;">
+                <div class="control-group">
+                    <input type="text" id="username" placeholder="Enter your name" maxlength="25">
+                    <input type="text" id="roomId" placeholder="Room ID (optional)">
+                    <button id="joinBtn">Join Voice Chat</button>
+                </div>
+                
+                <div class="volume-control">
+                    <label for="volumeSlider">Volume:</label>
+                    <input type="range" id="volumeSlider" min="0" max="100" value="50">
+                    <span id="volumeValue">50%</span>
+                </div>
+            </div>
+
+            <div id="voiceArea" style="display: none;">
+                <div id="voiceParticipants"></div>
+                
+                <div id="voiceControls">
+                    <button id="muteBtn" class="control-btn">🎤 Mute</button>
+                    <button id="deafenBtn" class="control-btn">🔊 Deafen</button>
+                    <button id="screenshareBtn" class="control-btn">📺 Share Screen</button>
+                    <button id="leaveBtn" class="control-btn leave">Leave</button>
+                </div>
+                
+                <div id="screenshareArea" style="display: none;">
+                    <div id="screenshareHeader">
+                        <span id="screenshareUser"></span> is sharing their screen
+                        <button id="closeScreenshare" class="close-btn">×</button>
+                    </div>
+                    <video id="screenshareVideo" autoplay playsinline></video>
+                </div>
+            </div>
+        </main>
+
+        <div id="errorModal" class="modal" style="display: none;">
+            <div class="modal-content">
+                <span class="close">&times;</span>
+                <h3>Error</h3>
+                <p id="errorMessage"></p>
+            </div>
+        </div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
